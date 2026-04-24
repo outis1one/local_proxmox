@@ -15,26 +15,35 @@ its own processor, its own RAM, its own network port, and it runs 24 hours a day
 as long as the server has power — even when the server is "off". Dell calls this
 second computer iDRAC.
 
-What it lets you do:
-- See a virtual screen of the server from your web browser (like sitting in front
-  of it with a monitor plugged in, but over the network)
-- Power the server on and off remotely
-- Mount a virtual USB drive so you can install an OS without physically being there
-- Read temperatures, fan speeds, and hardware health
-- See hardware logs when something fails
-- Send IPMI commands — which is how our fan control script talks to the fans
+This server has **iDRAC8 Express**, which is the version built into the board
+at no cost. There is a paid upgrade called iDRAC8 Enterprise but you do not
+need it. Here is exactly what Express gives you and what it does not:
 
-**Do you need to pay for it?** No. The R730xd shipped with **iDRAC8 Enterprise**
-already built in and fully licensed. You will not be asked to pay for anything.
-The features are already there.
+**Express includes (everything this guide uses):**
+- iDRAC web UI — hardware health dashboard, temperatures, fan speeds, event logs
+- Power the server on and off remotely from the web UI
+- IPMI over LAN — lets `ipmitool` send fan control commands from Proxmox
+- racadm — command-line control used by the stagger spin-up script
+- SSH directly into iDRAC for management
 
-The confusion people sometimes have: there is a separate **Proxmox subscription**
-(about €100/year) which gives you access to their enterprise update servers and
-commercial support. You do not need this either. We will configure the free
-community repositories in Phase 6. iDRAC and the Proxmox subscription are
-completely unrelated things.
+**Express does NOT include:**
+- Virtual Console — you cannot see the server's screen in a browser window.
+  A **physical monitor and keyboard are required** for all setup steps until
+  Proxmox is installed and SSH is working. After that you will never need the
+  monitor again.
+- Virtual Media — you cannot mount an ISO file over the network. A **physical
+  USB drive** is required for the Proxmox installer.
 
-**Summary: pay nothing, skip nothing.**
+Nothing in this guide requires Enterprise. The fan control script and stagger
+spin-up both use IPMI over LAN and racadm, which are both available on Express.
+
+**Do you need to pay for anything?** No. iDRAC Express is already there and
+covers everything we need. The only other "subscription" people sometimes ask
+about is the **Proxmox subscription** (about €100/year for enterprise update
+servers and commercial support). You do not need that either — we configure the
+free community repositories in Phase 6. The two are completely unrelated.
+
+**Summary: pay nothing, skip nothing. Keep a monitor plugged in through Phase 6.**
 
 ---
 
@@ -43,8 +52,11 @@ completely unrelated things.
 - The server plugged into power and a network switch/router
 - A **separate network cable** for the iDRAC port (the small RJ45 on the back
   labeled "iDRAC" — it is separate from the four main NIC ports)
-- A monitor and USB keyboard plugged into the server for the initial setup
-  (after Phase 2 you can do everything from your regular computer over the network)
+- A **monitor and USB keyboard** plugged into the server — required through
+  Phase 5 (the Proxmox installer). iDRAC Express does not include a remote
+  KVM, so you cannot see the server's screen from another computer. After
+  Proxmox is installed and SSH is working (end of Phase 6) the monitor
+  can be unplugged permanently.
 - A USB drive (8 GB or larger) — needed later for the Proxmox installer
 - Another computer or phone to read this guide
 

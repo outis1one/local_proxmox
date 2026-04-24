@@ -1,0 +1,30 @@
+# Proxmox VM 102 — Storage / utility VM
+#
+# Copy to /etc/pve/qemu-server/102.conf after filling in:
+#   - scsi1–scsi2: real /dev/disk/by-id paths for bays 11–12
+
+agent: 1
+bios: ovmf
+boot: order=scsi0
+cores: 4
+cpu: host
+machine: q35
+memory: 8192
+name: vm102
+numa: 0
+ostype: l26
+scsihw: virtio-scsi-single
+sockets: 1
+
+# OS disk
+scsi0: local-lvm:vm-102-disk-0,cache=writeback,size=32G
+
+# Data drives — bays 11–12
+scsi1: /dev/disk/by-id/PLACEHOLDER_BAY11,size=0
+scsi2: /dev/disk/by-id/PLACEHOLDER_BAY12,size=0
+
+# Network
+net0: virtio=BC:24:11:00:00:66,bridge=vmbr0,firewall=1
+
+# EFI disk
+efidisk0: local-lvm:vm-102-disk-1,efitype=4m,pre-enrolled-keys=0,size=4M

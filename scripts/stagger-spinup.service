@@ -1,0 +1,16 @@
+[Unit]
+Description=Stagger hard drive spin-up to limit PSU current surge
+# Runs early in boot, before storage services and VMs start, so drives
+# are already spun up and staggered before any heavy I/O begins.
+DefaultDependencies=no
+After=local-fs-pre.target
+Before=local-fs.target sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/stagger-spinup.sh --linux
+RemainAfterExit=yes
+StandardOutput=journal
+
+[Install]
+WantedBy=sysinit.target

@@ -29,3 +29,22 @@ Proxmox VE 9.1 configuration, scripts, and VM layouts for a Dell R730xd homelab.
 ## Docs
 
 - [`docs/hardware-layout.md`](docs/hardware-layout.md) — bay/device/VM mapping worksheet
+
+Committed and pushed. The guide is at `docs/setup-guide.md` and covers everything in order:
+
+| Phase | What happens |
+|-------|-------------|
+| 1 | Firmware updates (do this first — saves pain later) |
+| 2 | iDRAC: static IP + enable IPMI over LAN |
+| 3 | BIOS: VT-x, VT-d, UEFI mode, HDD stagger — **all required** |
+| 4 | H730: RAID1 the 2x 2.5" OS drives, leave 3.5" alone |
+| 5 | Install Proxmox onto the RAID1 OS mirror |
+| 6 | Post-install: fix repos, install tools, clone this repo |
+| 7 | `perc-nonraid.sh` — 3.5" drives to non-RAID mode |
+| 8 | `build-bay-map.sh` — walk bays with LED blink, fill in the map |
+| 9 | `gpu-passthrough-setup.sh` — IOMMU + vfio-pci, verify with `lspci` |
+| 10 | Fan control + stagger spin-up services installed |
+| 11 | Create VMs, fill in the conf placeholders |
+| 12 | NVIDIA driver + Docker + Frigate inside VM 100 |
+
+The key thing to do **before** touching the installer: Phase 3 BIOS settings, especially VT-d. It's the most common skip that causes passthrough to silently fail.

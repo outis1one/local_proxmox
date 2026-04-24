@@ -1,0 +1,94 @@
+# Frigate NVR configuration — VM 100 (Quadro P2200 + Google Coral USB)
+# Docs: https://docs.frigate.video/configuration/
+
+mqtt:
+  enabled: false        # set to true and fill in host/port if you use Home Assistant or MQTT
+
+# ── Object detection ─────────────────────────────────────────────────────────
+# Coral USB handles all inference; CPU usage for detection is near zero.
+detectors:
+  coral:
+    type: edgetpu
+    device: usb
+
+# ── FFmpeg hardware decode (Quadro P2200 NVDEC) ───────────────────────────────
+# These presets tell ffmpeg to use the GPU for H.264/H.265 decode.
+# CPU usage per stream drops from ~15–30% to ~1–2%.
+ffmpeg:
+  hwaccel_args: preset-nvidia-h264   # default for H.264 cameras
+  # Per-camera override available if some cameras use H.265 — see cameras section below
+
+# ── Global detect settings ───────────────────────────────────────────────────
+detect:
+  enabled: true
+  width: 1280
+  height: 720
+  fps: 5              # Coral processes 5 fps for detection; recording captures full stream
+
+# ── Recording ────────────────────────────────────────────────────────────────
+record:
+  enabled: true
+  retain:
+    days: 7
+    mode: motion      # only keep segments with motion (saves disk)
+  events:
+    retain:
+      default: 14     # keep event clips for 14 days regardless of motion-only rule
+      mode: active_objects
+
+# ── Snapshots ────────────────────────────────────────────────────────────────
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 14
+
+# ── Object filter defaults ────────────────────────────────────────────────────
+objects:
+  track:
+    - person
+    - car
+    - dog
+    - cat
+  filters:
+    person:
+      min_area: 1500    # ignore very small detections (reduces false positives)
+      min_score: 0.6
+      threshold: 0.7
+
+# ── Cameras ──────────────────────────────────────────────────────────────────
+# Add one entry per camera. Duplicate and adjust as needed.
+# Use {FRIGATE_RTSP_PASSWORD} to reference the env var from docker-compose.yml.
+
+cameras:
+  front_door:
+    ffmpeg:
+      inputs:
+        - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@192.168.1.XXX/stream1
+          roles:
+            - detect
+            - record
+    # Uncomment to override hwaccel for H.265 cameras:
+    # ffmpeg:
+    #   hwaccel_args: preset-nvidia-h265
+
+  # back_yard:
+  #   ffmpeg:
+  #     inputs:
+  #       - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@192.168.1.XXX/stream1
+  #         roles:
+  #           - detect
+  #           - record
+
+# ── Birdseye view (optional multi-camera overview) ────────────────────────────
+birdseye:
+  enabled: true
+  mode: motion         # only show cameras with recent motion
+
+# ── Telemetry / stats ─────────────────────────────────────────────────────────
+telemetry:
+  stats:
+    amd_gpu_stats: false
+    intel_gpu_stats: false
+    network_bandwidth: false

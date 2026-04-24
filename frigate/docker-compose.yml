@@ -1,0 +1,39 @@
+services:
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    privileged: true          # needed for Coral USB device access
+    runtime: nvidia           # NVIDIA Container Toolkit — enables NVDEC in ffmpeg
+
+    shm_size: "256mb"         # shared memory for decoded frame buffers
+                              # increase to 512mb if running 8+ cameras
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+      # Set RTSP credentials here and reference as {FRIGATE_RTSP_PASSWORD} in config.yml
+      FRIGATE_RTSP_PASSWORD: "changeme"
+
+    devices:
+      # Coral USB — exposes full USB bus so both pre/post-init VID:PIDs work
+      - /dev/bus/usb:/dev/bus/usb
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config.yml:/config/config.yml:ro
+      - /mnt/frigate:/media/frigate   # recordings and snapshots — point at your drive mount
+
+    ports:
+      - "5000:5000"       # Frigate web UI
+      - "8554:8554"       # RTSP restream
+      - "8555:8555/tcp"   # WebRTC
+      - "8555:8555/udp"   # WebRTC
+
+    # healthcheck so docker knows when Frigate is actually ready
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

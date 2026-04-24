@@ -1,0 +1,19 @@
+[Unit]
+Description=Dell R730xd fan speed control (third-party GPU)
+# iDRAC sets fans to 100% when non-Dell PCIe cards are detected.
+# This service overrides that and manages fan speed by inlet temperature.
+After=network.target
+# Restart if ipmitool fails transiently (e.g. iDRAC busy at boot)
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/fan-control.sh
+# On stop, re-enable iDRAC auto control so fans are safe if service is removed
+ExecStop=/usr/local/sbin/fan-control.sh --auto
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

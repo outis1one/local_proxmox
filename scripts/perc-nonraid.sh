@@ -10,9 +10,10 @@ set -euo pipefail
 
 PERCCLI=$(command -v perccli || command -v perccli64 || true)
 if [[ -z "$PERCCLI" ]]; then
-  echo "perccli not found. Install from:"
-  echo "  https://www.dell.com/support (search 'PERCCLI')"
-  echo "  or: dpkg -i perccli_*.deb"
+  echo "perccli not found. Install options:"
+  echo "  1. apt install -y perccli   (try this first — in Proxmox repos)"
+  echo "  2. Download from dell.com/support → enter service tag → Drivers → Storage"
+  echo "     Look for 'PERCCLI' and download the Linux .deb, then: dpkg -i perccli_*.deb"
   exit 1
 fi
 

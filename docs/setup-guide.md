@@ -212,7 +212,15 @@ targets unconfigured physical disks.
 
 ### Install perccli
 
-Download from Dell support (search "PERCCLI") or copy the `.deb` to the host:
+Try apt first — it's in the Proxmox repos:
+
+```bash
+apt install -y perccli
+```
+
+If not found, download the `.deb` manually: go to `dell.com/support`, enter
+your service tag, then Drivers → Storage → search "PERCCLI", download the
+Linux package, copy it to the host, and install:
 
 ```bash
 dpkg -i perccli_*.deb

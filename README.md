@@ -1948,7 +1948,16 @@ IMPORTANT: Pass the GPU + its HDMI audio sibling to the same VM.
 
 **Write down or copy this address** — you need it in Phase 11 when
 creating the VMs. In this example:
-- GPU is at `04:00` → goes in VM 100 (Frigate)
+- GPU is at `04:00` → goes in VM 101 (Desktop/Media)
+
+> **Why not Frigate?** The Coral TPU handles all object detection. Frigate
+> only uses the GPU for hardware video decode (NVDEC) — useful but not
+> critical. With dual Xeons the R730xd has plenty of CPU headroom for software
+> decode. Giving the GPU to the desktop VM unlocks Jellyfin transcoding,
+> HandBrake encoding, and general GPU acceleration where it's more valuable.
+> If Frigate's CPU decode becomes a bottleneck later, add a cheap ewaste GPU
+> (GT 1030, GTX 1050 Ti, or Quadro P400/P600 — all under $50 used) and pass
+> that to VM 100 instead.
 
 ---
 
@@ -2183,31 +2192,9 @@ Click **Next**.
 
 Click **Next**, then **Finish**.
 
-VM 100 now appears in the left panel. **Do not start it yet** — the GPU, Coral
-USB, and data drives must be added first.
-
----
-
-### Step 11.4 — Add GPU passthrough to VM 100
-
-In the left panel, click **100 (frigate)** → **Hardware** tab.
-
-Click **Add** → **PCI Device**.
-
-| Field | Value |
-|-------|-------|
-| Raw Device | select the GPU from the dropdown (shows PCI address + model name) |
-| All Functions | **checked** |
-| Primary GPU | **checked** |
-| PCI-Express | **checked** |
-
-> **All Functions** passes both `04:00.0` (VGA) and `04:00.1` (HDMI audio) as
-> a unit. Without it the audio sibling stays on the host.
-
-> **Primary GPU** (`x-vga=1` in the config) tells the VM this is its display
-> adapter. Required for console output in the guest before GPU drivers load.
-
-Click **Add**.
+VM 100 now appears in the left panel. **Do not start it yet** — the Coral
+USB and data drives must be added first. VM 100 (Frigate) runs without a GPU —
+the Coral handles detection and the CPU handles video decode.
 
 ---
 
@@ -2301,6 +2288,23 @@ qm set <vmid> -usb0 host=2-1   # bus-port notation from lsusb -t
 - To see what's currently passed through: `grep usb /etc/pve/qemu-server/<vmid>.conf`
 - To remove a device: `qm set <vmid> -delete usb0`
 
+**USB optical drives:**
+
+Pass a USB optical drive to VM 101 (Desktop) for ripping with MakeMKV or
+HandBrake. Use **Method B (by port)** rather than by vendor/device ID — some
+optical drives briefly re-enumerate when a disc spins up, which can cause the
+device to drop and reconnect if bound by ID.
+
+```bash
+# Find the port your drive is on:
+lsusb -t
+# Then pass it to VM 101:
+qm set 101 -usb1 host=<bus>-<port>   # e.g. host=2-3
+```
+
+Inside VM 101 the drive appears as `/dev/sr0`. MakeMKV and HandBrake will
+find it automatically.
+
 ---
 
 ### Step 11.6 — Add raw data drives to VM 100 via CLI
@@ -2347,7 +2351,7 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.7 — Create VM 101 (Ubuntu Desktop, no GPU)
+### Step 11.7 — Create VM 101 (Ubuntu Desktop + GPU)
 
 Click **Create VM** in the web UI.
 
@@ -2359,10 +2363,22 @@ Click **Create VM** in the web UI.
 | Memory | 16384 MiB |
 | Disk | 64 GiB on local-lvm |
 
-No GPU, no Coral USB — the single GPU is already assigned to VM 100.
+After the wizard completes, add the GPU in the **Hardware** tab:
 
-> VM 101 uses Ubuntu Desktop for a full GUI environment accessible via
-> Proxmox's noVNC console or RDP.
+Click **Add** → **PCI Device**.
+
+| Field | Value |
+|-------|-------|
+| Raw Device | select the GPU from the dropdown |
+| All Functions | **checked** |
+| Primary GPU | **checked** |
+| PCI-Express | **checked** |
+
+Click **Add**.
+
+> VM 101 gets the GPU for Jellyfin transcoding, HandBrake encoding, and
+> general desktop GPU acceleration. Accessible via Proxmox noVNC console
+> or RDP once Ubuntu Desktop is installed.
 
 Add the two data drives via CLI:
 
@@ -2483,8 +2499,8 @@ Leave the large data drives untouched — they are for you to configure later.
 | What is done | Status |
 |---|---|
 | Ubuntu Server 24.04.4 and Desktop 24.04.4 ISOs uploaded to Proxmox | ✓ |
-| VM 100 created: GPU, Coral USB (×2), 8 raw data drives | ✓ |
-| VM 101 created: no GPU, 2 raw data drives | ✓ |
+| VM 100 created: Coral USB (×2), 8 raw data drives, CPU decode | ✓ |
+| VM 101 created: GPU, 2 raw data drives | ✓ |
 | VM 102 created: 2 raw data drives, no GPU | ✓ |
 | Ubuntu installed and SSH accessible in all three VMs | ✓ |
 
@@ -2492,13 +2508,17 @@ Leave the large data drives untouched — they are for you to configure later.
 
 ## Phase 12 — Deploy Frigate in VM 100
 
-**What this phase does:** Installs the NVIDIA driver and Docker inside VM 100,
-creates a ZFS storage pool from the 8 data drives, then deploys Frigate NVR
-with GPU-accelerated video decode and Coral object detection.
+**What this phase does:** Installs Docker inside VM 100, creates a ZFS
+storage pool from the 8 data drives, and deploys Frigate NVR with Coral
+TPU object detection and CPU video decode.
+
+> **No GPU in VM 100.** The Coral handles all AI inference. Frigate uses
+> CPU decode for camera streams — perfectly adequate on dual Xeons. If you
+> later add a second GPU and pass it to VM 100, enable NVDEC in
+> `frigate/config.yml` under `ffmpeg.hwaccel_args`.
 
 **Prerequisites:**
 - VM 100 running Ubuntu Server 24.04.4 with SSH access (Phase 11)
-- NVIDIA GPU passed through (PCIe device visible in guest)
 - Google Coral USB passed through (USB device visible in guest)
 - 8 raw data drives visible as block devices inside the VM
 - Frigate config files from this repo (`frigate/docker-compose.yml` and
@@ -2517,90 +2537,30 @@ sudo -i
 
 ---
 
-### Step 12.2 — Verify the GPU is visible
+### Step 12.2 — Verify the Coral USB is visible
 
 ```bash
-lspci | grep -i nvidia
+lsusb | grep -i "1a6e\|18d1"
 ```
 
-Expected:
+Expected (one or both IDs depending on firmware load state):
 
 ```
-06:10.0 VGA compatible controller: NVIDIA Corporation GP106GL [Quadro P2200] (rev a1)
-06:10.1 Audio device: NVIDIA Corporation GP106 High Definition Audio Controller (rev a1)
+Bus 001 Device 003: ID 1a6e:089a Global Unichip Corp.
+Bus 001 Device 004: ID 18d1:9302 Google Inc.
 ```
 
-> **The PCI address inside the VM (e.g. `06:10.0`) will differ from the host
-> address (`04:00.0`).** QEMU re-numbers the virtual PCIe bus. This is normal.
+If neither appears, check that `usb0` and `usb1` are set correctly in
+`/etc/pve/qemu-server/100.conf` on the Proxmox host and that the Coral
+is physically plugged in.
 
-If neither device appears, check that `hostpci0` is set correctly in
-`/etc/pve/qemu-server/100.conf` on the Proxmox host, and that Phase 10
-completed successfully (GPU showing `vfio-pci` on the host).
+> **If you later add a second GPU to VM 100** for hardware decode, install
+> the NVIDIA driver (`apt install -y nvidia-driver-535`), reboot, verify
+> with `nvidia-smi`, then enable hwaccel in `frigate/config.yml`.
 
 ---
 
-### Step 12.3 — Install the NVIDIA driver
-
-```bash
-apt update
-apt install -y nvidia-driver-535
-```
-
-This installs the driver and all required kernel modules. Takes 2–4 minutes.
-
-> If the installer asks about Secure Boot MOK (Machine Owner Key), press OK
-> to dismiss — Secure Boot is off in this VM (pre-enrolled-keys was unchecked
-> in Phase 11), so the prompt has no effect.
-
-Reboot the VM to load the driver:
-
-```bash
-reboot
-```
-
-SSH back in after ~30 seconds:
-
-```bash
-ssh ubuntu@192.168.1.XXX
-sudo -i
-```
-
----
-
-### Step 12.4 — Verify nvidia-smi
-
-```bash
-nvidia-smi
-```
-
-Expected output:
-
-```
-+-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 535.xxx.xx                 Driver Version: 535.xxx.xx    CUDA Version: 12.x |
-|-----------------------------------------+------------------------+----------------------|
-| GPU  Name                Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
-|=========================================+========================+======================|
-|   0  Quadro P2200            Off       | 00000000:06:10.0   Off |                  N/A |
-| 41%   42C    P8              10W /  75W |      0MiB /  5120MiB  |      0%      Default |
-+-----------------------------------------------------------------------------------------+
-```
-
-Key things to verify:
-- **Driver Version: 535.xxx.xx** — driver loaded
-- GPU model matches your installed card
-- **5120 MiB** — full 5 GB memory visible (not a partial amount)
-
-If `nvidia-smi` returns `No devices were found`:
-```bash
-dmesg | grep -i nvidia | tail -20
-```
-Look for Secure Boot signature errors. If present, confirm `pre-enrolled-keys=0`
-in the VM's `efidisk0` line in Proxmox.
-
----
-
-### Step 12.5 — Install Docker
+### Step 12.3 — Install Docker
 
 ```bash
 curl -fsSL https://get.docker.com | sh
@@ -2625,47 +2585,7 @@ systemctl enable docker
 
 ---
 
-### Step 12.6 — Install NVIDIA Container Toolkit
-
-This allows Docker containers to access the GPU. Without it Frigate cannot use
-the GPU for hardware video decode.
-
-```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-apt update
-apt install -y nvidia-container-toolkit
-
-nvidia-ctk runtime configure --runtime=docker
-systemctl restart docker
-```
-
-Expected output from `nvidia-ctk`:
-
-```
-INFO    Configured /etc/docker/daemon.json
-```
-
----
-
-### Step 12.7 — Test GPU access in Docker
-
-```bash
-docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
-```
-
-Expected: the same `nvidia-smi` table from Step 12.4, now running inside a
-container. If you see `Error: no runtime "nvidia"`, run
-`systemctl restart docker` and try again.
-
----
-
-### Step 12.8 — Verify Coral USB
+### Step 12.4 — Verify Coral USB
 
 ```bash
 lsusb
@@ -2689,7 +2609,7 @@ the R730xd.
 
 ---
 
-### Step 12.9 — Create the ZFS storage pool
+### Step 12.5 — Create the ZFS storage pool
 
 Check which block devices are the data drives (the large ones — not the 64 GB
 OS disk):
@@ -2769,7 +2689,7 @@ With 8 × 4TB drives in RAIDZ2, expect roughly 22–24 TB usable.
 
 ---
 
-### Step 12.10 — Get the Frigate config files
+### Step 12.6 — Get the Frigate config files
 
 Clone the repo into the VM:
 
@@ -2787,7 +2707,7 @@ cp /opt/local_proxmox/frigate/config.yml /opt/frigate/
 
 ---
 
-### Step 12.11 — Edit docker-compose.yml
+### Step 12.7 — Edit docker-compose.yml
 
 ```bash
 nano /opt/frigate/docker-compose.yml
@@ -2811,7 +2731,7 @@ Save: **Ctrl+O**, Enter, **Ctrl+X**.
 
 ---
 
-### Step 12.12 — Edit config.yml and add your cameras
+### Step 12.8 — Edit config.yml and add your cameras
 
 ```bash
 nano /opt/frigate/config.yml
@@ -2840,12 +2760,11 @@ Common RTSP path formats by brand:
 | Reolink | `rtsp://user:{password}@IP/h264Preview_01_main` |
 | Amcrest | `rtsp://user:{password}@IP/cam/realmonitor?channel=1&subtype=0` |
 
-For H.265 cameras, uncomment the per-camera hwaccel override:
-
-```yaml
-    ffmpeg:
-      hwaccel_args: preset-nvidia-h265
-```
+> **If you later add a GPU to VM 100:** enable hardware decode per camera:
+> ```yaml
+>     ffmpeg:
+>       hwaccel_args: preset-nvidia-h265   # or preset-nvidia-h264
+> ```
 
 To add more cameras, duplicate the entire `front_door:` block (including
 indentation) and change the name and IP.
@@ -2854,7 +2773,7 @@ Save: **Ctrl+O**, Enter, **Ctrl+X**.
 
 ---
 
-### Step 12.13 — Start Frigate
+### Step 12.9 — Start Frigate
 
 ```bash
 cd /opt/frigate
@@ -2875,14 +2794,14 @@ A successful start looks like:
 ```
 frigate  | [INFO]    Starting Frigate...
 frigate  | [INFO]    Connected to EdgeTPU device: usb
-frigate  | [INFO]    Loading NVIDIA GPU: &lt;your GPU model&gt;
+frigate  | [INFO]    Loading Coral Edge TPU
 frigate  | [INFO]    Starting camera: front_door
 frigate  | [INFO]    Frigate is running
 ```
 
 Key lines:
 - **Connected to EdgeTPU device: usb** — Coral detected, inference running
-- **Loading NVIDIA GPU** — NVDEC hardware decode active
+- **Loading Coral Edge TPU** — Coral inference active
 - **Starting camera: [name]** — stream connected
 
 Press **Ctrl+C** to stop following logs. Frigate continues running in the
@@ -2902,7 +2821,7 @@ background.
 
 ---
 
-### Step 12.14 — Access the Frigate web UI
+### Step 12.10 — Access the Frigate web UI
 
 In a browser on your workstation:
 
@@ -2912,9 +2831,9 @@ http://192.168.1.XXX:5000
 
 The Frigate dashboard shows live camera feeds, detection events, and system
 stats. Navigate to **System → Stats** to confirm:
-- GPU utilization is shown (your GPU model)
+
 - Coral inference is running
-- CPU usage is low (NVDEC handling decode, Coral handling detection)
+- CPU usage is moderate (software decode) — add a GPU later to reduce it
 
 ---
 
@@ -2922,11 +2841,10 @@ stats. Navigate to **System → Stats** to confirm:
 
 | What is done | Status |
 |---|---|
-| NVIDIA driver 535 installed, verified with nvidia-smi | ✓ |
 | Docker and NVIDIA Container Toolkit configured | ✓ |
 | GPU accessible inside Docker containers | ✓ |
 | ZFS RAIDZ2 pool created from 8 data drives | ✓ |
-| Frigate running with NVDEC decode and Coral inference | ✓ |
+| Frigate running with Coral inference and CPU decode | ✓ |
 | Cameras configured in config.yml | ✓ |
 | Web UI accessible at http://vm100-ip:5000 | ✓ |
 
@@ -2939,8 +2857,8 @@ stats. Navigate to **System → Stats** to confirm:
 | Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU, Coral USB | ✓ |
 | Proxmox host | IOMMU active, GPU held by vfio-pci | ✓ |
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
-| VM 100 | Ubuntu Server 24.04.4, GPU passthrough, 8 drives, Frigate NVR | ✓ |
-| VM 101 | Ubuntu Desktop 24.04.4, no GPU, 2 drives | ready |
+| VM 100 | Ubuntu Server 24.04.4, Coral TPU, 8 drives, Frigate NVR (CPU decode) | ✓ |
+| VM 101 | Ubuntu Desktop 24.04.4, GPU passthrough, 2 drives | ready |
 | VM 102 | Ubuntu Server 24.04.4, 2 drives | ready |
 
 ---
@@ -2993,7 +2911,7 @@ perccli /c0 /eall /sall show
 # State should be "JBOD" or "UGood" — not "Offln" or "Msng"
 ```
 
-### nvidia-smi: No devices were found (in guest VM)
+### nvidia-smi: No devices were found (in VM 101)
 
 ```bash
 # Check dmesg in the guest:

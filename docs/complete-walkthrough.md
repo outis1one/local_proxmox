@@ -1203,34 +1203,24 @@ SSH into the Proxmox host if you are not already connected:
 ssh root@192.168.1.10
 ```
 
-Download perccli from Dell. On the Proxmox host, run:
+Download and install perccli on the Proxmox host. Dell only distributes an
+RPM, so we convert it with `alien`:
 
 ```bash
-cd /tmp
+# Download (referer header required — Dell blocks plain curl)
+curl -L \
+  --referer "https://www.dell.com/" \
+  --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  "https://dl.dell.com/FOLDER03559396M/1/perccli-1.17.10-1.noarch.rpm" \
+  -o /tmp/perccli.rpm
 
-# Download directly from Dell (this URL is stable — it redirects to the latest version)
-curl -L "https://dl.dell.com/FOLDER06708442M/1/perccli_7.1-007.0318_linux.tar.gz" \
-  -o perccli.tar.gz
-```
-
-> **If that URL does not work** (Dell occasionally moves files):
-> On your other computer go to **https://www.dell.com/support/home**, search
-> for your Service Tag, click **Drivers & Downloads**, filter Category to
-> **Systems Management**, and search for "PERCCLI". Download the Linux version.
-> Copy the `.tar.gz` or `.deb` file to the Proxmox host with:
-> ```bash
-> scp perccli_*.tar.gz root@192.168.1.10:/tmp/
-> ```
-
-Extract and install:
-
-```bash
-cd /tmp
-tar xzf perccli.tar.gz
-# The .deb file is inside the extracted folder:
-find /tmp -name "*.deb" | head -5
-# You will see something like: /tmp/perccli_007.1907.0000.0000_amd64.deb
+# Convert RPM → deb and install
+apt install -y alien
+alien --to-deb /tmp/perccli.rpm
 dpkg -i /tmp/perccli_*.deb
+
+# Binary lands in /opt/MegaRAID/perccli/ — symlink it into PATH
+ln -s /opt/MegaRAID/perccli/perccli64 /usr/local/bin/perccli
 ```
 
 Verify it installed:

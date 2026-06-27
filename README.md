@@ -2301,6 +2301,23 @@ qm set <vmid> -usb0 host=2-1   # bus-port notation from lsusb -t
 - To see what's currently passed through: `grep usb /etc/pve/qemu-server/<vmid>.conf`
 - To remove a device: `qm set <vmid> -delete usb0`
 
+**USB optical drives:**
+
+Pass a USB optical drive to VM 101 (Desktop) for ripping with MakeMKV or
+HandBrake. Use **Method B (by port)** rather than by vendor/device ID — some
+optical drives briefly re-enumerate when a disc spins up, which can cause the
+device to drop and reconnect if bound by ID.
+
+```bash
+# Find the port your drive is on:
+lsusb -t
+# Then pass it to VM 101:
+qm set 101 -usb1 host=<bus>-<port>   # e.g. host=2-3
+```
+
+Inside VM 101 the drive appears as `/dev/sr0`. MakeMKV and HandBrake will
+find it automatically.
+
 ---
 
 ### Step 11.6 — Add raw data drives to VM 100 via CLI

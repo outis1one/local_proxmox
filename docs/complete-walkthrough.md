@@ -444,6 +444,11 @@ VT for Direct I/O:  [ Disabled ]
 VT for Direct I/O:  [ Enabled  ]
 ```
 
+> **R730xd BIOS 2.19+ note:** The "VT for Direct I/O" toggle was removed in
+> BIOS version 2.19 and later — it does not appear in Processor Settings at all.
+> VT-d (IOMMU) is enabled by default on these BIOS versions. If you do not see
+> the toggle, that is expected; skip this sub-step and continue.
+
 Click **Back** to return to System BIOS Settings.
 
 ---
@@ -504,9 +509,13 @@ Click **Back**.
 
 ---
 
-### Step 3.4 — System BIOS → Power Management
+### Step 3.4 — System BIOS → System Profile Settings (Power Management)
 
-From System BIOS Settings, arrow to **Power Management** and press Enter.
+From System BIOS Settings, arrow to **System Profile Settings** and press Enter.
+
+> **R730xd BIOS 2.19+ note:** "Power Management" was renamed to **"System
+> Profile Settings"** in BIOS 2.19 and later. If you see "System Profile
+> Settings" in the menu, that is the same section — go there.
 
 Find:
 
@@ -520,10 +529,15 @@ Hard Disk Drive Sequencing:  [ Disabled ]
 Hard Disk Drive Sequencing:  [ Enabled  ]
 ```
 
+> **R730xd BIOS 2.19+ note:** The "Hard Disk Drive Sequencing" attribute
+> (`BIOS.StorageSettings.HddSeq`) was also removed in BIOS 2.19+. If you do
+> not see it here, skip it — the Linux stagger-spinup service (Phase 7, Step
+> 7.5) handles spin-up sequencing entirely from the OS side.
+
 Also check:
 
 **C States** — these are CPU power-saving sleep states. They can add latency
-to VM workloads. Optional but worth setting for a server:
+to VM workloads. Disable them for a server running VMs:
 
 ```
 C States:  [ Enabled  ]
@@ -587,6 +601,12 @@ script handles those later from inside Proxmox.
 RAID1 mirror as a single virtual disk to the OS. Proxmox installs onto it and
 never needs to think about the fact that two physical drives are underneath.
 This is the simplest and most reliable approach for an OS volume.
+
+> **If the 2.5" rear drives appear under a different controller (e.g., PERC H330
+> Mini):** The R730xd sometimes puts the rear bays on a separate mini controller
+> rather than the main H730. That is fine — just create the RAID1 on whichever
+> controller owns those drives. The rest of this phase is identical regardless
+> of which controller is used.
 
 ---
 
@@ -1899,94 +1919,23 @@ enabled in iDRAC. Revisit Phase 2's iDRAC IPMI settings.
 
 ---
 
-### Step 10.4 — Configure iDRAC staggered spin-up (BIOS layer)
+### Step 10.4 — iDRAC BIOS staggered spin-up (skip on BIOS 2.19+)
 
-The BIOS layer fires at POST, before the OS even starts. It tells the H730
-to spin up drives one at a time during the power-on self-test. This is the
-strongest protection because it runs when PSU inrush risk is highest.
-
-Run the script's iDRAC helper:
-
-```bash
-bash /opt/local_proxmox/scripts/stagger-spinup.sh --idrac
-```
-
-**If `racadm` is installed** on the Proxmox host (it sometimes ships in the
-Dell OMSA bundle), the script will run it directly:
-
-```
-Enabling iDRAC hard disk drive sequencing (staggered spin-up)...
-[Key=BIOS.Setup.1-1#StorageSettings]
-Object value modified successfully
-RAC973: Successfully scheduled a job.
-Job queued. Reboot for the BIOS setting to take effect.
-```
-
-**If `racadm` is not installed** — which is the normal case on a plain
-Proxmox host — the script prints two manual options:
-
-```
-racadm not found.
-Option A: Run from iDRAC SSH:
-  ssh root@<idrac-ip>
-  racadm set BIOS.StorageSettings.HddSeq Enabled
-  racadm jobqueue create BIOS.Setup.1-1
-  # Then reboot to apply.
-
-Option B: iDRAC web UI:
-  System BIOS → Power Management → Hard Disk Drive Sequencing → Enabled
-  Apply and reboot.
-```
-
-**Use Option A (iDRAC SSH)** — it is the reliable one. The web UI path is
-buried deep and the wording varies between firmware versions.
-
-SSH directly to iDRAC using the static IP you set in Phase 2:
-
-```bash
-ssh root@192.168.1.5
-```
-
-(Enter the iDRAC root password you set in Phase 2.)
-
-You will land in iDRAC's own shell — not the Proxmox shell. The prompt
-looks like:
-
-```
-/admin1->
-```
-
-Run the two racadm commands:
-
-```
-racadm set BIOS.StorageSettings.HddSeq Enabled
-racadm jobqueue create BIOS.Setup.1-1
-```
-
-Expected output for each:
-
-```
-/admin1-> racadm set BIOS.StorageSettings.HddSeq Enabled
-[Key=BIOS.Setup.1-1#StorageSettings]
-RAC1017: Successfully modified the object value and the change is in
-         pending state.
-
-/admin1-> racadm jobqueue create BIOS.Setup.1-1
-RAC1024: Successfully scheduled a job.
-Verify the job status using "racadm jobqueue view -i JID_xxxxxxxxxxxx"
-Commit JID = JID_123456789012
-Reboot Required = Yes
-```
-
-Type `exit` to leave the iDRAC shell. You are now back on the Proxmox
-host.
-
-The BIOS setting is **queued** but not yet applied — the server must POST
-once for it to take effect. The next reboot (Step 10.6 will trigger one)
-will apply it automatically.
-
-> **Why not reboot right now?** Because we are about to install the Linux
-> stagger service too, and one reboot covers both changes. Keep going.
+> **This step does not apply to R730xd BIOS 2.19 and later.** The BIOS
+> attribute `BIOS.StorageSettings.HddSeq` and the corresponding
+> `racadm set BIOS.StorageSettings.HddSeq Enabled` command were removed in
+> that firmware version. Running the command will return an error. Skip this
+> step entirely and proceed to Step 10.5 — the Linux stagger-spinup service
+> provides equivalent protection from the OS side.
+>
+> If you are running an older BIOS (pre-2.19) and want to enable the BIOS
+> layer as well, SSH to iDRAC and run:
+> ```
+> racadm set BIOS.StorageSettings.HddSeq Enabled
+> racadm jobqueue create BIOS.Setup.1-1
+> ```
+> Then reboot to apply. The Linux service (Step 10.5) is still recommended
+> as a second layer regardless.
 
 ---
 
@@ -2988,7 +2937,7 @@ lspci -nnk | grep -A3 -i nvidia   # must show vfio-pci
 ```bash
 dmesg | grep -i iommu
 # Should show: "DMAR: IOMMU enabled"
-# If not: re-check Phase 3 BIOS settings (VT-d) and Phase 9
+# If not: re-check Phase 9 cmdline (intel_iommu=on); VT-d is on by default in newer BIOS
 cat /etc/kernel/cmdline   # must contain intel_iommu=on iommu=pt
 ```
 

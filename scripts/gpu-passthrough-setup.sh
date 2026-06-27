@@ -50,27 +50,33 @@ read -rp "Proceed with configuring VFIO passthrough? [y/N] " confirm
 echo ""
 echo "--- Configuring kernel cmdline for IOMMU ---"
 
-if [[ ! -f "$CMDLINE_FILE" ]]; then
-  echo "ERROR: $CMDLINE_FILE not found. Is this a Proxmox EFI system?"
-  echo "For legacy GRUB: edit /etc/default/grub GRUB_CMDLINE_LINUX_DEFAULT instead."
-  exit 1
+if [[ -f "$CMDLINE_FILE" ]]; then
+  # Proxmox EFI boot tool path
+  current_cmdline=$(cat "$CMDLINE_FILE")
+  new_cmdline="$current_cmdline"
+  [[ "$new_cmdline" =~ intel_iommu=on ]] || new_cmdline="$new_cmdline intel_iommu=on"
+  [[ "$new_cmdline" =~ iommu=pt ]]       || new_cmdline="$new_cmdline iommu=pt"
+  new_cmdline=$(echo "$new_cmdline" | tr -s ' ' | sed 's/^ //;s/ $//')
+  echo "$new_cmdline" > "$CMDLINE_FILE"
+  echo "Written: $CMDLINE_FILE"
+  echo "  $new_cmdline"
+  proxmox-boot-tool refresh
+  echo "Boot tool refreshed."
+else
+  # Legacy GRUB path
+  GRUB_FILE="/etc/default/grub"
+  echo "No $CMDLINE_FILE found — using GRUB at $GRUB_FILE"
+  current_cmdline=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$GRUB_FILE" | sed 's/GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/\1/')
+  new_cmdline="$current_cmdline"
+  [[ "$new_cmdline" =~ intel_iommu=on ]] || new_cmdline="$new_cmdline intel_iommu=on"
+  [[ "$new_cmdline" =~ iommu=pt ]]       || new_cmdline="$new_cmdline iommu=pt"
+  new_cmdline=$(echo "$new_cmdline" | tr -s ' ' | sed 's/^ //;s/ $//')
+  sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$new_cmdline\"|" "$GRUB_FILE"
+  echo "Written: $GRUB_FILE"
+  echo "  GRUB_CMDLINE_LINUX_DEFAULT=\"$new_cmdline\""
+  update-grub
+  echo "GRUB updated."
 fi
-
-current_cmdline=$(cat "$CMDLINE_FILE")
-new_cmdline="$current_cmdline"
-
-[[ "$new_cmdline" =~ intel_iommu=on ]] || new_cmdline="$new_cmdline intel_iommu=on"
-[[ "$new_cmdline" =~ iommu=pt ]]       || new_cmdline="$new_cmdline iommu=pt"
-
-# Deduplicate spaces
-new_cmdline=$(echo "$new_cmdline" | tr -s ' ' | sed 's/^ //;s/ $//')
-
-echo "$new_cmdline" > "$CMDLINE_FILE"
-echo "Written: $CMDLINE_FILE"
-echo "  $new_cmdline"
-
-proxmox-boot-tool refresh
-echo "Boot tool refreshed."
 
 # ── Step 4: Blacklist host GPU drivers ────────────────────────────────────────
 

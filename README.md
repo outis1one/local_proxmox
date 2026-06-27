@@ -2162,6 +2162,12 @@ Click **Next**.
 | Cache | Write back |
 | Discard | checked (if local-lvm is on SSD) |
 
+> **Write back** acknowledges writes to the VM as soon as they land in the
+> host's RAM cache, before they hit disk — faster than "No cache" (the
+> default). Safe enough for an OS disk on a server with redundant PSUs.
+> For the raw HDD passthrough later, cache mode is irrelevant — those drives
+> manage their own caching.
+
 Click **Next**.
 
 **Tab: CPU**

@@ -54,16 +54,25 @@ fan control script to work later.
 ## Phase 3 — BIOS Settings
 
 Still in F2 System Setup. These settings are **required** for GPU and USB
-passthrough to work. Missing VT-d is the #1 reason passthrough fails silently.
+passthrough to work.
 
 | Menu path | Setting | Value |
 |-----------|---------|-------|
-| Processor Settings | Virtualization Technology (VT-x) | **Enabled** |
-| Processor Settings | VT for Direct I/O (VT-d) | **Enabled** |
+| Processor Settings | Virtualization Technology | **Enabled** |
+| Processor Settings | C States | **Disabled** |
 | PCI Configuration | SR-IOV Global Enable | **Enabled** |
 | Boot Settings → BIOS Boot Settings | Boot Mode | **UEFI** (not Legacy/BIOS) |
-| Power Management | Hard Disk Drive Sequencing | **Enabled** |
-| Power Management | Power Management Policy | **Performance** |
+| System Profile Settings | System Profile | **Custom** |
+| System Profile Settings | CPU Power Management | **Maximum Performance** |
+
+> **VT for Direct I/O (VT-d):** Newer R730xd BIOS versions (2.19+) removed
+> this toggle — VT-d is enabled by default. Don't worry if you can't find it.
+> Verify it's active after Proxmox is installed: `dmesg | grep -i iommu`
+> should show `DMAR: IOMMU enabled`. The kernel cmdline (`intel_iommu=on
+> iommu=pt`) in Phase 9 is still required.
+>
+> **Hard Disk Drive Sequencing** was also removed in newer BIOS — it is no
+> longer present and is not needed.
 
 > **Boot Mode must be UEFI.** Proxmox's EFI boot tool (`proxmox-boot-tool`)
 > only works with UEFI. Legacy BIOS mode breaks the GPU passthrough script.
@@ -162,13 +171,18 @@ Proxmox shows "no valid subscription" warnings when using the enterprise repo
 without a license. Switch to the free repo:
 
 ```bash
-# Disable enterprise repo
-echo "# disabled" > /etc/apt/sources.list.d/pve-enterprise.list
-echo "# disabled" > /etc/apt/sources.list.d/ceph.list
+# Disable enterprise repos — PVE9 uses .sources (DEB822 format), not .list
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/pve-enterprise.sources
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/ceph.sources
+# Also disable any legacy .list versions if present
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/pve-enterprise.list
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/ceph.list
 
-# Add no-subscription repo
-echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
+# Add no-subscription repos (trixie = Proxmox 9 / Debian 13)
+echo "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" \
   > /etc/apt/sources.list.d/pve-no-subscription.list
+echo "deb http://download.proxmox.com/debian/ceph-squid trixie no-subscription" \
+  > /etc/apt/sources.list.d/ceph-no-subscription.list
 
 apt update && apt dist-upgrade -y
 reboot
@@ -424,7 +438,7 @@ lspci -nnk | grep -A3 -i nvidia   # must show vfio-pci
 ```bash
 dmesg | grep -i iommu
 # Should show: "DMAR: IOMMU enabled"
-# If not: re-check Phase 3 BIOS settings (VT-d) and Phase 9
+# If not: re-check Phase 9 cmdline (intel_iommu=on); VT-d is on by default in newer BIOS
 cat /etc/kernel/cmdline   # must contain intel_iommu=on iommu=pt
 ```
 

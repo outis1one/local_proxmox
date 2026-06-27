@@ -10,9 +10,14 @@ set -euo pipefail
 
 PERCCLI=$(command -v perccli || command -v perccli64 || true)
 if [[ -z "$PERCCLI" ]]; then
-  echo "perccli not found. Install from:"
-  echo "  https://www.dell.com/support (search 'PERCCLI')"
-  echo "  or: dpkg -i perccli_*.deb"
+  echo "perccli not found. Install it:"
+  echo "  curl -L --referer 'https://www.dell.com/' \\"
+  echo "    --user-agent 'Mozilla/5.0' \\"
+  echo "    'https://dl.dell.com/FOLDER03559396M/1/perccli-1.17.10-1.noarch.rpm' \\"
+  echo "    -o /tmp/perccli.rpm"
+  echo "  apt install -y alien && alien --to-deb /tmp/perccli.rpm"
+  echo "  dpkg -i /tmp/perccli_*.deb"
+  echo "  ln -s /opt/MegaRAID/perccli/perccli64 /usr/local/bin/perccli"
   exit 1
 fi
 

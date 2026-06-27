@@ -212,10 +212,26 @@ targets unconfigured physical disks.
 
 ### Install perccli
 
-Download from Dell support (search "PERCCLI") or copy the `.deb` to the host:
+`apt` does not carry perccli. Download the RPM from Dell and convert it:
 
 ```bash
-dpkg -i perccli_*.deb
+# Download (referer header required — Dell blocks plain curl)
+curl -L \
+  --referer "https://www.dell.com/" \
+  --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  "https://dl.dell.com/FOLDER03559396M/1/perccli-1.17.10-1.noarch.rpm" \
+  -o /tmp/perccli.rpm
+
+# Convert RPM → deb and install
+apt install -y alien
+alien --to-deb /tmp/perccli.rpm
+dpkg -i /tmp/perccli_*.deb
+
+# Binary lands in /opt/MegaRAID/perccli/ — symlink it into PATH
+ln -s /opt/MegaRAID/perccli/perccli64 /usr/local/bin/perccli
+
+# Verify
+perccli show
 ```
 
 ### Run the script
@@ -300,17 +316,15 @@ To check current speed: `ipmitool sdr type Fan`
 
 ### Staggered spin-up
 
-**Layer 1 — iDRAC BIOS** (fires at every boot, before OS):
+> **BIOS 2.19+ note:** `BIOS.StorageSettings.HddSeq` was removed from the
+> R730xd firmware. The iDRAC/BIOS layer (Layer 1) no longer works — skip it
+> and go straight to the Linux service below.
 
-```bash
-bash /opt/local_proxmox/scripts/stagger-spinup.sh --idrac
-# If racadm is not available, the script prints the iDRAC web UI path instead.
-```
-
-**Layer 2 — Linux service** (handles drives coming up from standby):
+**Linux service** (staggers drives in standby at OS boot):
 
 ```bash
 cp /opt/local_proxmox/scripts/stagger-spinup.sh /usr/local/sbin/stagger-spinup.sh
+chmod +x /usr/local/sbin/stagger-spinup.sh
 cp /opt/local_proxmox/scripts/stagger-spinup.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable stagger-spinup.service

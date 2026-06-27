@@ -2132,6 +2132,7 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
+| Graphic card | **Default** (VirtIO) |
 | Machine | q35 |
 | BIOS | OVMF (UEFI) |
 | Add EFI Disk | checked |
@@ -2145,6 +2146,9 @@ Click **Next**.
 
 > **Pre-Enrolled Keys must be unchecked.** Enabling it turns on Secure Boot,
 > which blocks NVIDIA kernel modules from loading in the guest.
+
+> **Graphic card stays as Default (VirtIO) for VM 100** — Frigate has no
+> passed-through GPU, so it needs the virtual display for console access.
 
 Click **Next**.
 
@@ -2359,9 +2363,17 @@ Click **Create VM** in the web UI.
 |-----|-------|
 | General | VM ID: **101**, Name: **vm101** |
 | OS | ubuntu-24.04.4-desktop-amd64.iso |
+| System → Graphic card | **none** |
+| System → Machine | q35 |
+| System → BIOS | OVMF (UEFI) |
+| System → Pre-Enrolled Keys | **unchecked** |
 | CPU | 8 cores, host |
 | Memory | 16384 MiB |
 | Disk | 64 GiB on local-lvm |
+
+> **Graphic card must be set to "none"** when passing through a real GPU.
+> Leaving it as VirtIO-GPU creates a conflicting virtual display adapter that
+> interferes with the passed-through card.
 
 After the wizard completes, add the GPU in the **Hardware** tab:
 

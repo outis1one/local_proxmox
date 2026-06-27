@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configure IOMMU + VFIO passthrough for two Quadro P2200 GPUs on Proxmox VE 9.x.
+# Configure IOMMU + VFIO passthrough for NVIDIA GPUs on Proxmox VE 9.x.
 # Run on the Proxmox host. Requires a reboot to take effect.
 #
 # After running this script:

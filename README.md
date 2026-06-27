@@ -462,7 +462,7 @@ Find:
 **SR-IOV Global Enable**
 
 SR-IOV is a PCIe feature that allows a single physical device to appear as
-multiple devices. Even though the Quadro P2200 does not use SR-IOV, enabling
+multiple devices. Even though the GPU does not use SR-IOV, enabling
 this globally avoids a class of IOMMU grouping problems.
 
 ```
@@ -1203,7 +1203,7 @@ After running this, refresh the Proxmox web UI — the popup will be gone.
 **What this phase does:** Fixes two hardware quirks that bite R730xd owners
 running non-Dell gear:
 
-1. **Fan control.** iDRAC detects the two Quadro P2200s as "non-Dell PCIe
+1. **Fan control.** iDRAC detects the non-Dell GPUs as "non-Dell PCIe
    cards" and immediately pins every fan at 100% indefinitely to be safe.
    The server sounds like a jet engine and never stops. We disable iDRAC's
    automatic control and replace it with a daemon that sets fan speed based
@@ -1306,7 +1306,7 @@ Expected output:
 ```
 
 **The fans will immediately ramp back to 100% within a few seconds** — that
-is iDRAC reacting to the Quadro again. This confirms the script was in fact
+is iDRAC reacting to the non-Dell GPU again. This confirms the script was in fact
 holding them down. Get the service installed quickly so the noise stops.
 
 ---
@@ -1859,8 +1859,8 @@ VM 102. Save each file.
 
 ## Phase 10 — GPU Passthrough Setup
 
-**What this does:** Tells the Linux kernel to stop trying to use the two Quadro
-P2200s itself and instead hand them over to the VFIO driver, which holds them
+**What this does:** Tells the Linux kernel to stop trying to use the GPUs
+itself and instead hand them over to the VFIO driver, which holds them
 ready to be claimed by a virtual machine.
 
 Three things happen:
@@ -2230,7 +2230,7 @@ Click **Add** → **PCI Device**.
 
 | Field | Value |
 |-------|-------|
-| Raw Device | select GPU #1: e.g. `0000:03:00.0 NVIDIA GP106GL [Quadro P2200]` |
+| Raw Device | select GPU #1 from the dropdown (shows PCI address + model name) |
 | All Functions | **checked** |
 | Primary GPU | **checked** |
 | PCI-Express | **checked** |
@@ -2344,7 +2344,7 @@ Use the same wizard settings as VM 100 except:
 After the wizard completes, add the second GPU in the **Hardware** tab:
 
 Click **Add** → **PCI Device** → select GPU #2 (e.g. `0000:04:00.0 NVIDIA
-GP106GL [Quadro P2200]`). Check **All Functions**, **Primary GPU**,
+your GPU model`). Check **All Functions**, **Primary GPU**,
 **PCI-Express**. Click **Add**.
 
 No Coral USB for VM 101.
@@ -2479,7 +2479,7 @@ with GPU-accelerated video decode and Coral object detection.
 
 **Prerequisites:**
 - VM 100 running Ubuntu Server 24.04 with SSH access (Phase 11)
-- NVIDIA Quadro P2200 passed through (PCIe device visible in guest)
+- NVIDIA GPU passed through (PCIe device visible in guest)
 - Google Coral USB passed through (USB device visible in guest)
 - 8 raw data drives visible as block devices inside the VM
 - Frigate config files from this repo (`frigate/docker-compose.yml` and
@@ -2569,7 +2569,7 @@ Expected output:
 
 Key things to verify:
 - **Driver Version: 535.xxx.xx** — driver loaded
-- **Quadro P2200** — correct GPU model
+- GPU model matches your installed card
 - **5120 MiB** — full 5 GB memory visible (not a partial amount)
 
 If `nvidia-smi` returns `No devices were found`:
@@ -2609,7 +2609,7 @@ systemctl enable docker
 ### Step 12.6 — Install NVIDIA Container Toolkit
 
 This allows Docker containers to access the GPU. Without it Frigate cannot use
-the Quadro for hardware video decode.
+the GPU for hardware video decode.
 
 ```bash
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
@@ -2856,7 +2856,7 @@ A successful start looks like:
 ```
 frigate  | [INFO]    Starting Frigate...
 frigate  | [INFO]    Connected to EdgeTPU device: usb
-frigate  | [INFO]    Loading NVIDIA GPU: Quadro P2200
+frigate  | [INFO]    Loading NVIDIA GPU: &lt;your GPU model&gt;
 frigate  | [INFO]    Starting camera: front_door
 frigate  | [INFO]    Frigate is running
 ```
@@ -2893,7 +2893,7 @@ http://192.168.1.XXX:5000
 
 The Frigate dashboard shows live camera feeds, detection events, and system
 stats. Navigate to **System → Stats** to confirm:
-- GPU utilization is shown (Quadro P2200)
+- GPU utilization is shown (your GPU model)
 - Coral inference is running
 - CPU usage is low (NVDEC handling decode, Coral handling detection)
 
@@ -2917,7 +2917,7 @@ stats. Navigate to **System → Stats** to confirm:
 
 | Layer | Component | Running |
 |-------|-----------|---------|
-| Hardware | Dell R730xd, PERC H730, 12 drives, 2× Quadro P2200, Coral USB | ✓ |
+| Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU(s), Coral USB | ✓ |
 | Proxmox host | IOMMU active, GPUs held by vfio-pci | ✓ |
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
 | VM 100 | Ubuntu 24.04, GPU passthrough, 8 drives, Frigate NVR | ✓ |

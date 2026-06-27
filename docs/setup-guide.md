@@ -316,6 +316,7 @@ To check current speed: `ipmitool sdr type Fan`
 
 ```bash
 cp /opt/local_proxmox/scripts/stagger-spinup.sh /usr/local/sbin/stagger-spinup.sh
+chmod +x /usr/local/sbin/stagger-spinup.sh
 cp /opt/local_proxmox/scripts/stagger-spinup.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable stagger-spinup.service

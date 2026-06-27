@@ -2132,7 +2132,7 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| Graphic card | **none** |
+| Graphic card | **Default (VirtIO)** ← temporary for install |
 | Machine | q35 |
 | BIOS | OVMF (UEFI) |
 | Add EFI Disk | checked |
@@ -2149,9 +2149,11 @@ Click **Next**.
 > **Pre-Enrolled Keys must be unchecked.** Enabling it turns on Secure Boot,
 > which blocks NVIDIA kernel modules from loading in the guest.
 
-> **Graphic card: none** — this VM gets a real GPU passed through, so the
-> virtual display is disabled. Console access works via the passed-through GPU
-> once Ubuntu boots.
+> **Graphic card: use Default (VirtIO) during install.** With `none` selected,
+> noVNC has no virtual display to connect to and shows "Failed to run vncproxy."
+> Leave it as VirtIO for the Ubuntu install. After the GPU is passed through and
+> NVIDIA drivers are installed inside the VM, come back to Hardware → Display
+> and change it to `none`.
 
 > **Qemu Agent** — check this now, then after Ubuntu is installed run
 > `apt install qemu-guest-agent` inside the VM. It enables clean shutdown from

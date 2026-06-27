@@ -2175,12 +2175,16 @@ Click **Next**.
 | Field | Value |
 |-------|-------|
 | Sockets | 1 |
-| Cores | 8 |
-| Type | host |
+| Cores | 12 |
+| Type | **host** |
 
 > **Why `host` CPU type?** It exposes the real CPU feature flags, which NVIDIA
 > drivers expect. Without it, `nvidia-smi` may work but performance-sensitive
 > GPU features fail silently.
+>
+> **Why 12 cores?** The E5-2660 v4 has 14 cores per socket (28 total). Giving
+> VM 100 12 cores leaves the host and other VMs plenty of headroom. Sockets: 1
+> keeps the VM on a single NUMA node for lower memory latency.
 
 Click **Next**.
 
@@ -2197,8 +2201,12 @@ Click **Next**.
 | Field | Value |
 |-------|-------|
 | Bridge | vmbr0 |
-| Model | VirtIO (paravirt) |
+| Model | VirtIO (paravirtualized) |
+| VLAN Tag | no VLAN |
 | Firewall | checked |
+
+> `vmbr0` is the main LAN bridge. No VLAN tag needed for the desktop VM.
+> VirtIO is the fastest virtual NIC — always use it over e1000 or rtl8139.
 
 Click **Next**, then **Finish**.
 

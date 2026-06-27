@@ -1824,36 +1824,15 @@ Save with **Ctrl+O**, Enter, then **Ctrl+X** to exit nano.
 
 ---
 
-### Step 9.4 — Fill in the VM config placeholders
+### Step 9.4 — Record your by-id paths for later
 
-Now open each VM config example and replace the `PLACEHOLDER_BAYx` entries with
-the real by-id paths:
+You'll assign drives to VMs in Phase 11. For now, just save the mapping somewhere handy (the `hardware-layout.md` doc is a good place):
 
 ```bash
-nano /opt/local_proxmox/vm-configs/100-frigate.conf.example
+ls -la /dev/disk/by-id/ | grep -v part
 ```
 
-Change lines like:
-
-```
-scsi1: /dev/disk/by-id/PLACEHOLDER_BAY1,size=0
-```
-
-To the real path:
-
-```
-scsi1: /dev/disk/by-id/scsi-35000cca23b7d4eb8,size=0
-```
-
-Do this for all 8 drives in VM 100, drives 9–10 in VM 101, and drives 11–12 in
-VM 102. Save each file.
-
-> **The full path starts with `/dev/disk/by-id/`** — but in the Proxmox VM
-> config you write the full path. Double-check by running:
-> ```bash
-> ls -la /dev/disk/by-id/ | grep -v part
-> ```
-> You will see the symlinks and the drives they point to.
+You'll paste these paths into `qm set` commands in Phase 11, Step 11.6.
 
 ---
 

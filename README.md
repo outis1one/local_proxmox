@@ -2250,6 +2250,59 @@ Click **Add**.
 
 ---
 
+### Passing other USB devices to VMs
+
+Any USB device plugged into the R730xd can be passed through to a VM using
+the same method. Two ways to do it:
+
+**Method A — By Vendor/Device ID (recommended)**
+
+Ties the passthrough to the specific device model, not the physical port.
+The device appears in the VM regardless of which USB port it's plugged into.
+
+1. Find the device's IDs on the Proxmox host:
+   ```bash
+   lsusb
+   # Example output:
+   # Bus 001 Device 003: ID 0781:5583 SanDisk Corp. Ultra Fit
+   #                        ^^^^ ^^^^
+   #                        VID  PID
+   ```
+2. In the VM's **Hardware** tab → **Add** → **USB Device**
+3. Select **Use USB Vendor/Device ID**, enter the Vendor ID and Device ID
+4. Click **Add**
+
+**Method B — By USB port (use when you have multiple identical devices)**
+
+Ties the passthrough to a specific physical port on the server.
+
+1. In the VM's **Hardware** tab → **Add** → **USB Device**
+2. Select **Use USB Port**
+3. Pick the port from the dropdown (e.g. `USB Port 2`)
+4. Click **Add** — the device plugged into that port is always passed through
+
+**Via CLI instead of the web UI:**
+
+```bash
+# By vendor/device ID:
+qm set <vmid> -usb0 host=<vendorid>:<deviceid>
+# Example:
+qm set 101 -usb0 host=0781:5583
+
+# By port:
+qm set <vmid> -usb0 host=2-1   # bus-port notation from lsusb -t
+```
+
+**Notes:**
+- The device must be physically plugged in before starting the VM, or it
+  won't appear (same rule as the Coral)
+- Each USB slot in the VM config is `usb0`, `usb1`, `usb2` etc. — increment
+  for each additional device
+- To see what's currently passed through: `grep usb /etc/pve/qemu-server/<vmid>.conf`
+- To remove a device: `qm set <vmid> -delete usb0`
+
+---
+
 ### Step 11.6 — Add raw data drives to VM 100 via CLI
 
 The web UI does not support raw block device passthrough cleanly — use the

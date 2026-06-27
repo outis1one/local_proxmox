@@ -2064,7 +2064,11 @@ cat /etc/modprobe.d/vfio.conf
 Also confirm IOMMU is in the kernel command line:
 
 ```bash
+# Proxmox EFI boot tool (if this file exists):
 cat /etc/kernel/cmdline
+
+# GRUB (if the above file doesn't exist — use this instead):
+grep CMDLINE /etc/default/grub
 # Should contain: intel_iommu=on iommu=pt
 ```
 
@@ -2938,7 +2942,8 @@ lspci -nnk | grep -A3 -i nvidia   # must show vfio-pci
 dmesg | grep -i iommu
 # Should show: "DMAR: IOMMU enabled"
 # If not: re-check Phase 10 cmdline (intel_iommu=on); VT-d is on by default in newer BIOS
-cat /etc/kernel/cmdline   # must contain intel_iommu=on iommu=pt
+grep CMDLINE /etc/default/grub   # must contain intel_iommu=on iommu=pt
+# (or: cat /etc/kernel/cmdline if using Proxmox EFI boot tool)
 ```
 
 ### Fan control not working

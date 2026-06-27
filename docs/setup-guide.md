@@ -300,14 +300,11 @@ To check current speed: `ipmitool sdr type Fan`
 
 ### Staggered spin-up
 
-**Layer 1 — iDRAC BIOS** (fires at every boot, before OS):
+> **BIOS 2.19+ note:** `BIOS.StorageSettings.HddSeq` was removed from the
+> R730xd firmware. The iDRAC/BIOS layer (Layer 1) no longer works — skip it
+> and go straight to the Linux service below.
 
-```bash
-bash /opt/local_proxmox/scripts/stagger-spinup.sh --idrac
-# If racadm is not available, the script prints the iDRAC web UI path instead.
-```
-
-**Layer 2 — Linux service** (handles drives coming up from standby):
+**Linux service** (staggers drives in standby at OS boot):
 
 ```bash
 cp /opt/local_proxmox/scripts/stagger-spinup.sh /usr/local/sbin/stagger-spinup.sh

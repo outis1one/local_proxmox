@@ -28,25 +28,19 @@ HDPARM=$(command -v hdparm || true)
 # ── iDRAC BIOS method (Layer 1) ───────────────────────────────────────────────
 
 configure_idrac() {
-  if ! command -v racadm &>/dev/null; then
-    echo "racadm not found."
-    echo "Option A: Run from iDRAC SSH:"
-    echo "  ssh root@<idrac-ip>"
-    echo "  racadm set BIOS.StorageSettings.HddSeq Enabled"
-    echo "  racadm jobqueue create BIOS.Setup.1-1"
-    echo "  # Then reboot to apply."
-    echo ""
-    echo "Option B: iDRAC web UI:"
-    echo "  System BIOS → Power Management → Hard Disk Drive Sequencing → Enabled"
-    echo "  Apply and reboot."
-    return 0
-  fi
-
-  echo "Enabling iDRAC hard disk drive sequencing (staggered spin-up)..."
-  racadm set BIOS.StorageSettings.HddSeq Enabled
-  racadm jobqueue create BIOS.Setup.1-1
-  echo "Job queued. Reboot for the BIOS setting to take effect."
-  echo "Verify after reboot with: racadm get BIOS.StorageSettings.HddSeq"
+  # BIOS.StorageSettings.HddSeq was removed in R730xd BIOS 2.19+.
+  # The BIOS-level stagger is no longer available; rely on Layer 2 (Linux service).
+  echo "NOTE: BIOS.StorageSettings.HddSeq was removed in R730xd BIOS 2.19+."
+  echo "The iDRAC/BIOS layer for staggered spin-up is not available on this firmware."
+  echo ""
+  echo "Use the Linux systemd service (Layer 2) instead — it handles the same"
+  echo "job by staggering drives that are in standby at OS boot time."
+  echo ""
+  echo "To install the service:"
+  echo "  cp stagger-spinup.sh /usr/local/sbin/stagger-spinup.sh"
+  echo "  chmod +x /usr/local/sbin/stagger-spinup.sh"
+  echo "  # copy stagger-spinup.service to /etc/systemd/system/"
+  echo "  systemctl daemon-reload && systemctl enable stagger-spinup.service"
 }
 
 # ── Linux spin-up stagger (Layer 2) ──────────────────────────────────────────

@@ -1,5 +1,5 @@
 # Dell R730xd — Complete Setup Walkthrough
-### Proxmox VE 9.1 · GPU Passthrough · Frigate NVR
+### Proxmox VE 9.1 · GPU Passthrough · Immich · Jellyfin · Frigate NVR
 
 Full button-by-button guide from bare metal to running VMs. All 12 phases in
 one document.
@@ -20,7 +20,7 @@ one document.
 - [Phase 9 — Map Physical Bays to Drives](#phase-9--map-physical-bays-to-drives)
 - [Phase 10 — GPU Passthrough Setup](#phase-10--gpu-passthrough-setup)
 - [Phase 11 — Create the VMs](#phase-11--create-the-vms)
-- [Phase 12 — Deploy Frigate in VM 100](#phase-12--deploy-frigate-in-vm-100)
+- [Phase 12 — Deploy Frigate in VM 101](#phase-12--deploy-frigate-in-vm-101)
 
 ---
 
@@ -244,6 +244,9 @@ reboot normally.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 2 — iDRAC Setup
 
 You need to do two things with iDRAC:
@@ -378,6 +381,9 @@ You should see the iDRAC dashboard showing system health, temperatures, and fans
 This is your remote window into the server — you can now manage it from your desk.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 3 — BIOS Settings
 
@@ -591,6 +597,9 @@ where the first Apply does not persist — applying a second time fixes it.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 4 — H730 RAID Configuration
 
 **Goal:** Mirror the two 2.5" rear drives together so a single drive failure
@@ -795,6 +804,9 @@ Click **Back** repeatedly until you reach the Lifecycle Controller home screen,
 then click **Exit**. The server will reboot.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 5 — Install Proxmox VE 9.1
 
@@ -1068,6 +1080,9 @@ You are now looking at the Proxmox web interface — the main dashboard.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 6 — Proxmox Post-Install
 
 From this point you will use **SSH** instead of the web console for most tasks.
@@ -1197,6 +1212,9 @@ After running this, refresh the Proxmox web UI — the popup will be gone.
 | Repo cloned to /opt/local_proxmox | ✓ |
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 7 — Fan Control + Staggered Spin-Up
 
@@ -1562,6 +1580,9 @@ Stagger complete.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 8 — Convert 3.5" Drives to Non-RAID Mode
 
 **What this does:** Right now the H730 sees your 3.5" drives as "Unconfigured
@@ -1726,6 +1747,9 @@ effect — reboot again and re-run `lsblk`. If still missing, re-run
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 9 — Map Physical Bays to Drives
 
 **The problem:** Linux names drives `sdb`, `sdc`, `sdd` etc. based on the order
@@ -1835,6 +1859,9 @@ ls -la /dev/disk/by-id/ | grep -v part
 You'll paste these paths into `qm set` commands in Phase 11, Step 11.6.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 10 — GPU Passthrough Setup
 
@@ -1948,16 +1975,17 @@ IMPORTANT: Pass the GPU + its HDMI audio sibling to the same VM.
 
 **Write down or copy this address** — you need it in Phase 11 when
 creating the VMs. In this example:
-- GPU is at `04:00` → goes in VM 101 (Desktop/Media)
+- GPU is at `04:00` → goes in VM 100 (Services)
 
 > **Why not Frigate?** The Coral TPU handles all object detection. Frigate
 > only uses the GPU for hardware video decode (NVDEC) — useful but not
 > critical. With dual Xeons the R730xd has plenty of CPU headroom for software
-> decode. Giving the GPU to the desktop VM unlocks Jellyfin transcoding,
-> HandBrake encoding, and general GPU acceleration where it's more valuable.
+> decode. Giving the GPU to the services VM (VM 100) unlocks Jellyfin
+> transcoding, Immich ML acceleration, HandBrake encoding, and general GPU
+> acceleration where it's more valuable.
 > If Frigate's CPU decode becomes a bottleneck later, add a cheap ewaste GPU
 > (GT 1030, GTX 1050 Ti, or Quadro P400/P600 — all under $50 used) and pass
-> that to VM 100 instead.
+> that to VM 101 instead.
 
 ---
 
@@ -1966,7 +1994,7 @@ creating the VMs. In this example:
 While you have the addresses, add them to the VM configs now:
 
 ```bash
-nano /opt/local_proxmox/vm-configs/100-frigate.conf.example
+nano /opt/local_proxmox/vm-configs/101-frigate.conf.example
 ```
 
 Find the line:
@@ -2054,6 +2082,9 @@ grep CMDLINE /etc/default/grub
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 11 — Create the VMs
 
 **What this phase does:** Creates three VMs in the Proxmox web interface, attaches
@@ -2070,8 +2101,8 @@ each one, and verifies SSH access.
 
 ### Step 11.1 — Download the Ubuntu installer ISO
 
-**VM 100 (Frigate)** needs Ubuntu Server 24.04.4 LTS.
-**VM 101 (desktop)** needs Ubuntu Desktop 24.04.4 LTS.
+**VM 100 (Services)** needs Ubuntu Desktop 24.04.4 LTS.
+**VM 101 (Frigate)** needs Ubuntu Server 24.04.4 LTS.
 
 Download both on your workstation:
 - Server: `ubuntu.com/download/server` → `ubuntu-24.04.4-live-server-amd64.iso`
@@ -2104,7 +2135,7 @@ appears in the list.
 
 ---
 
-### Step 11.3 — Create VM 100 (Frigate) via the wizard
+### Step 11.3 — Create VM 100 (Services) via the wizard
 
 In the Proxmox web UI, click **Create VM** (top-right button).
 
@@ -2114,7 +2145,7 @@ In the Proxmox web UI, click **Create VM** (top-right button).
 |-------|-------|
 | Node | pve |
 | VM ID | 100 |
-| Name | frigate |
+| Name | services |
 
 Click **Next**.
 
@@ -2122,7 +2153,7 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| ISO image | ubuntu-24.04.4-live-server-amd64.iso |
+| ISO image | ubuntu-24.04.4-desktop-amd64.iso |
 | OS Type | Linux |
 | Version | 6.x - 2.6 Kernel |
 
@@ -2189,14 +2220,26 @@ Click **Next**.
 | Sockets | 1 |
 | Cores | 12 |
 | Type | **host** |
+| Enable NUMA | **checked** |
 
 > **Why `host` CPU type?** It exposes the real CPU feature flags, which NVIDIA
 > drivers expect. Without it, `nvidia-smi` may work but performance-sensitive
 > GPU features fail silently.
 >
-> **Why 12 cores?** The E5-2660 v4 has 14 cores per socket (28 total). Giving
-> VM 100 12 cores leaves the host and other VMs plenty of headroom. Sockets: 1
-> keeps the VM on a single NUMA node for lower memory latency.
+> **Why 12 cores / 1 socket?** The E5-2660 v4 has 14 cores per socket (28
+> total across both CPUs). Keeping Sockets at 1 pins the VM to a single NUMA
+> node — all memory accesses stay local to that socket's RAM channels, avoiding
+> the ~30–40ns penalty of crossing to the other socket. Give VM 100 12 cores
+> from socket 0, VM 101 gets 6 cores from socket 1.
+>
+> **Enable NUMA** tells Proxmox to allocate RAM from the same socket the vCPUs
+> are pinned to. Without it the RAM may come from the wrong socket even if
+> Sockets is set to 1. The checkbox is in **Processors → Edit → Enable NUMA**
+> (not in the Memory dialog).
+>
+> **nested-virt flag** — you will see this in Extra CPU Flags. Leave it at
+> Default; it is automatically enabled when CPU type is `host` on Intel, which
+> is what allows VirtualBox/WinApps to run inside this VM.
 
 Click **Next**.
 
@@ -2233,20 +2276,35 @@ Click **Next**.
 | VLAN Tag | no VLAN |
 | Firewall | checked |
 
-> `vmbr0` is the main LAN bridge. No VLAN tag needed for the desktop VM.
+> `vmbr0` is the main LAN bridge. No VLAN tag needed for the services VM.
 > VirtIO is the fastest virtual NIC — always use it over e1000 or rtl8139.
 
 Click **Next**, then **Finish**.
 
-VM 100 now appears in the left panel. **Do not start it yet** — the Coral
-USB and data drives must be added first. VM 100 (Frigate) runs without a GPU —
-the Coral handles detection and the CPU handles video decode.
+VM 100 now appears in the left panel. **Do not start it yet** — the GPU and
+data drives must be added first.
+
+After the wizard completes, add the GPU in the **Hardware** tab:
+
+Click **Add** → **PCI Device**.
+
+| Field | Value |
+|-------|-------|
+| Raw Device | select the GPU from the dropdown |
+| All Functions | **checked** |
+| Primary GPU | **checked** |
+| PCI-Express | **checked** |
+
+Click **Add**.
+
+> VM 100 gets the GPU for Jellyfin transcoding, Immich ML acceleration,
+> HandBrake encoding, and general desktop GPU acceleration.
 
 ---
 
-### Step 11.5 — Add Coral USB to VM 100
+### Step 11.5 — Add Coral USB to VM 101
 
-Still in VM 100's **Hardware** tab.
+In the left panel, click **101** → **Hardware** tab.
 
 Click **Add** → **USB Device**.
 
@@ -2336,7 +2394,7 @@ qm set <vmid> -usb0 host=2-1   # bus-port notation from lsusb -t
 
 **USB optical drives:**
 
-Pass a USB optical drive to VM 101 (Desktop) for ripping with MakeMKV or
+Pass a USB optical drive to VM 100 (Services) for ripping with MakeMKV or
 HandBrake. Use **Method B (by port)** rather than by vendor/device ID — some
 optical drives briefly re-enumerate when a disc spins up, which can cause the
 device to drop and reconnect if bound by ID.
@@ -2344,20 +2402,20 @@ device to drop and reconnect if bound by ID.
 ```bash
 # Find the port your drive is on:
 lsusb -t
-# Then pass it to VM 101:
-qm set 101 -usb1 host=<bus>-<port>   # e.g. host=2-3
+# Then pass it to VM 100:
+qm set 100 -usb2 host=<bus>-<port>   # e.g. host=2-3
 ```
 
-Inside VM 101 the drive appears as `/dev/sr0`. MakeMKV and HandBrake will
+Inside VM 100 the drive appears as `/dev/sr0`. MakeMKV and HandBrake will
 find it automatically.
 
 ---
 
 ### Step 11.6 — Enable nested virtualization on the Proxmox host
 
-VM 100 will run a nested Windows VM (VirtualBox) for Sync.com. This requires
-exposing hardware virtualization extensions to the guest. Run on the
-**Proxmox host**:
+VM 100 (Services) benefits from nested virtualization support for any
+VirtualBox workloads. This requires exposing hardware virtualization extensions
+to the guest. Run on the **Proxmox host**:
 
 ```bash
 # Check current state — Y = already enabled, N = needs enabling
@@ -2463,57 +2521,45 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.9 — Create VM 101 (Ubuntu Desktop + GPU)
+### Step 11.9 — Create VM 101 (Frigate)
 
 Click **Create VM** in the web UI.
 
 | Tab | Value |
 |-----|-------|
-| General | VM ID: **101**, Name: **vm101** |
-| OS | ubuntu-24.04.4-desktop-amd64.iso |
-| System → Graphic card | **none** |
+| General | VM ID: **101**, Name: **frigate** |
+| OS | ubuntu-24.04.4-live-server-amd64.iso |
+| System → Graphic card | **Default (VirtIO)** |
 | System → Machine | q35 |
 | System → BIOS | OVMF (UEFI) |
 | System → Pre-Enrolled Keys | **unchecked** |
-| CPU | 8 cores, host |
-| Memory | 16384 MiB |
+| CPU | 6 cores, host |
+| Memory | 8192 MiB |
 | Disk | 64 GiB on local-lvm |
 
-> **Graphic card must be set to "none"** when passing through a real GPU.
-> Leaving it as VirtIO-GPU creates a conflicting virtual display adapter that
-> interferes with the passed-through card.
-
-After the wizard completes, add the GPU in the **Hardware** tab:
-
-Click **Add** → **PCI Device**.
+**Tab: Network**
 
 | Field | Value |
 |-------|-------|
-| Raw Device | select the GPU from the dropdown |
-| All Functions | **checked** |
-| Primary GPU | **checked** |
-| PCI-Express | **checked** |
+| Bridge | vmbr0 |
+| Model | VirtIO (paravirtualized) |
+| VLAN Tag | your security VLAN tag (e.g. 20) |
+| Firewall | checked |
 
-Click **Add**.
+> Frigate runs on a dedicated security VLAN so cameras are isolated from the
+> main LAN. Set the VLAN tag to match your camera/security VLAN.
 
-> VM 101 gets the GPU for Jellyfin transcoding, HandBrake encoding, and
-> general desktop GPU acceleration. Accessible via Proxmox noVNC console
-> or RDP once Ubuntu Desktop is installed.
-
-Add the two data drives via CLI:
-
-```bash
-qm set 101 -scsi1 /dev/disk/by-id/PLACEHOLDER_BAY9
-qm set 101 -scsi2 /dev/disk/by-id/PLACEHOLDER_BAY10
-```
+> **No GPU for VM 101.** The Coral TPU (added in Step 11.5) handles all AI
+> inference. Frigate uses CPU decode for camera streams — perfectly adequate
+> on dual Xeons with 6 cores dedicated to this VM.
 
 ---
 
 ### Step 11.10 — Create VM 102 (Windows 11, Sync.com)
 
 VM 102 is a Windows 11 VM that runs the Sync.com desktop client for cloud
-backup. Syncthing on VM 100 mirrors NAS data to VM 102's local NTFS drive,
-and Sync.com picks it up natively.
+backup. Syncthing on VM 100 (Services) mirrors NAS data to VM 102's local
+NTFS drive, and Sync.com picks it up natively.
 
 Click **Create VM** again.
 
@@ -2578,8 +2624,8 @@ qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_SYNC_DRIVE
 
 > **Why a dedicated drive?** Sync.com needs a real local NTFS disk — not a
 > network share, not a shared folder. Windows formats this drive NTFS and
-> Sync.com treats it as a native local drive. Syncthing on VM 100 pushes
-> data to it over the LAN.
+> Sync.com treats it as a native local drive. Syncthing on VM 100 (Services)
+> pushes data to it over the LAN.
 
 ---
 
@@ -2676,18 +2722,15 @@ echo $XDG_SESSION_TYPE   # should print: x11
 
 ---
 
-### Step 11.14 — Install Ubuntu in VM 101
+### Step 11.14 — Install Ubuntu Server in VM 101
 
-Start VM 101, open the console, and work through the Ubuntu Desktop installer.
-Use `vm101` as the hostname. When prompted for storage, install only to the
-64 GiB OS disk — leave the data drives untouched.
+Start VM 101, open the console, and work through the Ubuntu Server installer.
+Use `frigate` as the hostname. When prompted for storage, install only to the
+64 GiB OS disk — leave any additional drives untouched. Enable OpenSSH server
+when prompted so you can SSH in for Phase 12.
 
-After first login, disable Wayland on VM 101 as well (same command as Step 11.13):
-
-```bash
-sudo sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
-sudo systemctl restart gdm3
-```
+> **No Wayland to disable** — Ubuntu Server has no desktop environment.
+> After install, SSH in directly: `ssh ubuntu@<vm101-ip>`
 
 **VM 102 (Windows 11):** Boot from the Windows 11 ISO, work through the
 installer. Use `windows-sync` as the hostname. Install to the 128 GiB OS disk.
@@ -2701,39 +2744,40 @@ Management, then install the Sync.com desktop client and point it at that drive.
 | What is done | Status |
 |---|---|
 | Ubuntu Server 24.04.4 and Desktop 24.04.4 ISOs uploaded to Proxmox | ✓ |
-| VM 100 created: Coral USB (×2), 8 raw data drives, CPU decode | ✓ |
-| VM 101 created: GPU, 2 raw data drives | ✓ |
-| VM 102 created: 2 raw data drives, no GPU | ✓ |
+| VM 100 created: GPU, 8 raw data drives, services (Immich/Jellyfin/Audiobookshelf/NAS) | ✓ |
+| VM 101 created: Coral USB (×2), security VLAN, Frigate NVR | ✓ |
+| VM 102 created: Windows 11, Sync.com | ✓ |
 | Ubuntu installed and SSH accessible in all three VMs | ✓ |
 
 ---
 
-## Phase 12 — Deploy Frigate in VM 100
 
-**What this phase does:** Installs Docker inside VM 100, creates a ZFS
+<a href="#top">↑ Back to top</a>
+
+## Phase 12 — Deploy Frigate in VM 101
+
+**What this phase does:** Installs Docker inside VM 101, creates a ZFS
 storage pool from the 8 data drives, and deploys Frigate NVR with Coral
 TPU object detection and CPU video decode.
 
-> **No GPU in VM 100.** The Coral handles all AI inference. Frigate uses
-> CPU decode for camera streams — perfectly adequate on dual Xeons. If you
-> later add a second GPU and pass it to VM 100, enable NVDEC in
-> `frigate/config.yml` under `ffmpeg.hwaccel_args`.
+> **No GPU in VM 101.** The Coral handles all AI inference. Frigate uses
+> CPU decode for camera streams — perfectly adequate on dual Xeons.
 
 **Prerequisites:**
-- VM 100 running Ubuntu Server 24.04.4 with SSH access (Phase 11)
+- VM 101 running Ubuntu Server 24.04.4 with SSH access (Phase 11)
 - Google Coral USB passed through (USB device visible in guest)
 - 8 raw data drives visible as block devices inside the VM
 - Frigate config files from this repo (`frigate/docker-compose.yml` and
   `frigate/config.yml`)
 
-All commands in this phase run **inside VM 100** — not on the Proxmox host.
+All commands in this phase run **inside VM 101** — not on the Proxmox host.
 
 ---
 
-### Step 12.1 — SSH into VM 100 and switch to root
+### Step 12.1 — SSH into VM 101 and switch to root
 
 ```bash
-ssh ubuntu@192.168.1.XXX   # VM 100's IP from Phase 11
+ssh ubuntu@192.168.1.XXX   # VM 101's IP from Phase 11
 sudo -i
 ```
 
@@ -2753,12 +2797,8 @@ Bus 001 Device 004: ID 18d1:9302 Google Inc.
 ```
 
 If neither appears, check that `usb0` and `usb1` are set correctly in
-`/etc/pve/qemu-server/100.conf` on the Proxmox host and that the Coral
+`/etc/pve/qemu-server/101.conf` on the Proxmox host and that the Coral
 is physically plugged in.
-
-> **If you later add a second GPU to VM 100** for hardware decode, install
-> the NVIDIA driver (`apt install -y nvidia-driver-535`), reboot, verify
-> with `nvidia-smi`, then enable hwaccel in `frigate/config.yml`.
 
 ---
 
@@ -2962,7 +3002,7 @@ Common RTSP path formats by brand:
 | Reolink | `rtsp://user:{password}@IP/h264Preview_01_main` |
 | Amcrest | `rtsp://user:{password}@IP/cam/realmonitor?channel=1&subtype=0` |
 
-> **If you later add a GPU to VM 100:** enable hardware decode per camera:
+> **If you later add a GPU to VM 101:** enable hardware decode per camera:
 > ```yaml
 >     ffmpeg:
 >       hwaccel_args: preset-nvidia-h265   # or preset-nvidia-h264
@@ -3048,7 +3088,7 @@ stats. Navigate to **System → Stats** to confirm:
 | ZFS RAIDZ2 pool created from 8 data drives | ✓ |
 | Frigate running with Coral inference and CPU decode | ✓ |
 | Cameras configured in config.yml | ✓ |
-| Web UI accessible at http://vm100-ip:5000 | ✓ |
+| Web UI accessible at http://vm101-ip:5000 | ✓ |
 
 ---
 
@@ -3059,9 +3099,9 @@ stats. Navigate to **System → Stats** to confirm:
 | Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU, Coral USB | ✓ |
 | Proxmox host | IOMMU active, GPU held by vfio-pci | ✓ |
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
-| VM 100 | Ubuntu Server 24.04.4, Coral TPU, 8 drives, Frigate NVR (CPU decode) | ✓ |
-| VM 101 | Ubuntu Desktop 24.04.4, GPU passthrough, 2 drives | ready |
-| VM 102 | Ubuntu Server 24.04.4, 2 drives | ready |
+| VM 100 | Ubuntu Desktop 24.04.4, GPU passthrough, 8 drives, Immich/Jellyfin/Audiobookshelf/NAS | ✓ |
+| VM 101 | Ubuntu Server 24.04.4, Coral TPU, Frigate NVR, security VLAN | ✓ |
+| VM 102 | Windows 11, Sync.com | ready |
 
 ---
 
@@ -3098,7 +3138,7 @@ journalctl -u fan-control.service -n 50
 ### Coral not detected in Frigate
 
 ```bash
-# In VM 100, check both USB IDs are present
+# In VM 101, check both USB IDs are present
 lsusb | grep -E "1a6e|18d1"
 # If missing, check the USB passthrough lines in the VM config
 # Both usb0 (1a6e:089a) and usb1 (18d1:9302) must be present
@@ -3113,7 +3153,7 @@ perccli /c0 /eall /sall show
 # State should be "JBOD" or "UGood" — not "Offln" or "Msng"
 ```
 
-### nvidia-smi: No devices were found (in VM 101)
+### nvidia-smi: No devices were found (in VM 100)
 
 ```bash
 # Check dmesg in the guest:
@@ -3126,7 +3166,7 @@ ssh root@192.168.1.10 "lspci -nnk | grep -A2 nvidia"
 ### Frigate recordings disk full
 
 ```bash
-# In VM 100, check ZFS pool health and usage:
+# In VM 101, check ZFS pool health and usage:
 zpool status frigate-data
 zfs list
 # Frigate retains recordings per the config.yml settings:
@@ -3134,3 +3174,5 @@ zfs list
 # Edit /opt/frigate/config.yml and reduce retention days, then:
 docker compose restart
 ```
+
+<a href="#top">↑ Back to top</a>

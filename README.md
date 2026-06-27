@@ -2583,43 +2583,37 @@ qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_SYNC_DRIVE
 
 ---
 
-### Step 11.11 — Install Ubuntu in VM 100
+### Step 11.11 — Install Ubuntu Desktop in VM 100
 
-In the left panel, click **100 (frigate)** → click **Start** (▶ button).
+In the left panel, click **100** → click **Start** (▶ button).
 
-Open the console: click **Console** at the top. This opens a noVNC session in
-your browser.
+Open the console: click **Console** at the top. This opens a noVNC session.
 
-Wait for the Ubuntu GRUB menu to appear. Select **Try or Install Ubuntu
-Server** and press Enter.
+Wait for the Ubuntu GRUB menu → select **Try or Install Ubuntu** → press Enter.
 
-Work through the Ubuntu Server installer:
+Work through the Ubuntu Desktop installer:
 
 1. **Language:** English (or your preference)
-2. **Keyboard:** your layout
-3. **Type of install:** Ubuntu Server (not minimised — minimised is missing tools
-   you need)
-4. **Network connections:** the VirtIO NIC auto-detects and gets a DHCP IP.
-   **Note the IP address** — you will use it for SSH in the next step.
-5. **Proxy:** leave blank
-6. **Ubuntu archive mirror:** leave at default (or a nearby mirror)
-7. **Storage:**
-   - **Guided storage layout** → **Use an entire disk**
-   - Select the **64GB** virtual disk (the scsi0 OS disk — shows as ~64.4 GB)
-   - Leave LVM enabled
-   - **Do not select the large 3.6TB data drives** — those will become a ZFS
-     pool in Phase 12
-8. **Profile setup:**
-   - Server's name: `frigate`
-   - Username: `ubuntu` (or your preference)
-   - Password: something strong
-9. **SSH:** check **Install OpenSSH server** → Yes
-10. **Featured server snaps:** skip all
+2. **Accessibility:** skip
+3. **Keyboard:** your layout
+4. **Connect to internet:** the VirtIO NIC auto-detects, gets DHCP — continue
+5. **What do you want to do?** → **Install Ubuntu**
+6. **How do you want to install?** → **Interactive installation**
+7. **Applications:** Default selection
+8. **Optimise your computer:** check both boxes (install restricted extras, download updates)
+9. **Disk setup:** → **Manual partitioning** or **Erase disk and install Ubuntu**
+   - Select the **64 GiB** virtual disk (scsi0 — the small one)
+   - **Do not touch the large data drives** — leave them completely alone
+10. **Time zone:** your location
+11. **Create account:**
+    - Name / hostname: `vm100`
+    - Username: your preference
+    - Password: something strong
+    - **Enable auto-login** if this is a desktop you sit at
+12. **Ready to install:** click **Install**
 
-Click **Done** on the summary screen. The install takes 5–10 minutes.
-
-When installation finishes: **Reboot Now**. Proxmox ejects the ISO
-automatically. When the login prompt appears in the console, the OS is ready.
+Install takes 10–15 minutes. When done click **Restart Now**. Proxmox ejects
+the ISO automatically.
 
 ---
 
@@ -2647,22 +2641,58 @@ ssh ubuntu@192.168.1.XXX
 If SSH connects, close the noVNC console tab — you will not need it again.
 
 > **Recommended:** Set a DHCP reservation in your router for VM 100's MAC
-> address so its IP stays stable. Frigate's web UI and stream URLs depend on
-> a predictable IP.
+> address so its IP stays stable.
 
 ---
 
-### Step 11.13 — Install Ubuntu in VM 101
+### Step 11.13 — Disable Wayland, force Xorg
 
-**VM 101 (Desktop):** Start the VM, open the console, and work through the
-Ubuntu Desktop installer. Use `vm101` as the hostname. The desktop installer
-is graphical — click through the screens. When prompted for storage, install
-only to the 64GB OS disk; leave the data drives untouched.
+Ubuntu 24.04 defaults to Wayland. WinApps file sharing (`\\tsclient\home`)
+breaks under Wayland due to FreeRDP limitations — tsclient mounts as empty.
+Force Xorg system-wide with one command:
 
-**VM 102 (Server):** Repeat steps 11.9–11.10. Use `vm102` as the hostname.
+```bash
+ssh ubuntu@192.168.1.XXX
 
-During the storage step in each VM: install Ubuntu only on the small OS disk.
-Leave the large data drives untouched — they are for you to configure later.
+# Uncomment WaylandEnable=false in GDM config
+sudo sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
+
+# Verify the line is now active (should print: WaylandEnable=false)
+grep WaylandEnable /etc/gdm3/custom.conf
+
+# Restart the display manager to apply
+sudo systemctl restart gdm3
+```
+
+After GDM restarts, log back in. Verify Xorg is active:
+
+```bash
+echo $XDG_SESSION_TYPE   # should print: x11
+```
+
+> **Why this matters beyond WinApps:** Wayland also has issues with some GPU
+> passthrough configurations, screen sharing tools, and remote desktop clients.
+> Xorg is the more stable choice for a server-side desktop running inside a VM.
+
+---
+
+### Step 11.14 — Install Ubuntu in VM 101
+
+Start VM 101, open the console, and work through the Ubuntu Desktop installer.
+Use `vm101` as the hostname. When prompted for storage, install only to the
+64 GiB OS disk — leave the data drives untouched.
+
+After first login, disable Wayland on VM 101 as well (same command as Step 11.13):
+
+```bash
+sudo sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
+sudo systemctl restart gdm3
+```
+
+**VM 102 (Windows 11):** Boot from the Windows 11 ISO, work through the
+installer. Use `windows-sync` as the hostname. Install to the 128 GiB OS disk.
+After install, format the dedicated Sync.com data drive as NTFS in Disk
+Management, then install the Sync.com desktop client and point it at that drive.
 
 ---
 

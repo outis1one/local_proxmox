@@ -1845,7 +1845,7 @@ ready to be claimed by a virtual machine.
 Three things happen:
 1. IOMMU is turned on in the kernel (the hardware feature VT-d enables)
 2. The host's NVIDIA/nouveau GPU drivers are blocked from loading
-3. The VFIO driver claims both GPUs at boot, before any other driver can
+3. The VFIO driver claims the GPU at boot, before any other driver can
 
 ---
 
@@ -1877,19 +1877,16 @@ for d in /sys/kernel/iommu_groups/*/devices/*; do
 done | sort -V | grep -i nvidia
 ```
 
-Example good output — each GPU is in a different group:
+Example good output — the GPU is in its own group:
 
 ```
-IOMMU Group 24  03:00.0 VGA compatible controller [0300]: NVIDIA GP106GL [Quadro P2200] [10de:1c35]
-IOMMU Group 24  03:00.1 Audio device [0403]: NVIDIA GP106 High Definition Audio [10de:10f1]
 IOMMU Group 31  04:00.0 VGA compatible controller [0300]: NVIDIA GP106GL [Quadro P2200] [10de:1c35]
 IOMMU Group 31  04:00.1 Audio device [0403]: NVIDIA GP106 High Definition Audio [10de:10f1]
 ```
 
-Each GPU (`03:00.0` and `04:00.0`) and its audio sibling (`03:00.1` and
-`04:00.1`) are together in their own group — that is exactly what you want.
+The GPU (`04:00.0`) and its audio sibling (`04:00.1`) are together in their own group — that is exactly what you want.
 
-> **If both GPUs are in the same IOMMU group as other devices** (chipset, NICs,
+> **If the GPU is in the same IOMMU group as other devices** (chipset, NICs,
 > etc.), you may need to enable **ACS** (Access Control Services). This is rare
 > on server hardware like the R730xd which has good IOMMU separation. If you
 > hit this, ask before proceeding.
@@ -1906,8 +1903,6 @@ The script first prints your NVIDIA devices:
 
 ```
 === Detected NVIDIA devices ===
-03:00.0 VGA compatible controller [10de:1c35]: NVIDIA GP106GL [Quadro P2200]
-03:00.1 Audio device [10de:10f1]: NVIDIA GP106 High Definition Audio
 04:00.0 VGA compatible controller [10de:1c35]: NVIDIA GP106GL [Quadro P2200]
 04:00.1 Audio device [10de:10f1]: NVIDIA GP106 High Definition Audio
 
@@ -1946,16 +1941,14 @@ At the end it prints the PCI addresses you need:
 ```
 === GPU PCI addresses for VM assignment ===
 
-  hostpci0: 0000:03:00,pcie=1   # VGA: NVIDIA GP106GL [Quadro P2200]
   hostpci0: 0000:04:00,pcie=1   # VGA: NVIDIA GP106GL [Quadro P2200]
 
-IMPORTANT: Pass each GPU + its HDMI audio sibling to the same VM.
+IMPORTANT: Pass the GPU + its HDMI audio sibling to the same VM.
 ```
 
-**Write down or copy these addresses** — you need them in Phase 11 when
+**Write down or copy this address** — you need it in Phase 11 when
 creating the VMs. In this example:
-- GPU 1 is at `03:00` → goes in VM 100 (Frigate)
-- GPU 2 is at `04:00` → goes in VM 101
+- GPU is at `04:00` → goes in VM 100 (Frigate)
 
 ---
 
@@ -1973,17 +1966,10 @@ Find the line:
 hostpci0: 0000:XX:00,pcie=1,x-vga=1
 ```
 
-Replace `XX:00` with your GPU 1 address, e.g.:
+Replace `XX:00` with your GPU address, e.g.:
 
 ```
-hostpci0: 0000:03:00,pcie=1,x-vga=1
-```
-
-Save, then do the same for VM 101:
-
-```bash
-nano /opt/local_proxmox/vm-configs/101.conf.example
-# Change XX:00 to 04:00 (GPU 2)
+hostpci0: 0000:04:00,pcie=1,x-vga=1
 ```
 
 ---
@@ -2008,14 +1994,9 @@ ssh root@192.168.1.10
 lspci -nnk | grep -A3 -i nvidia
 ```
 
-For each GPU, look for the driver line. It **must** say `vfio-pci`:
+Look for the driver line. It **must** say `vfio-pci`:
 
 ```
-03:00.0 VGA compatible controller [10de:1c35]: NVIDIA GP106GL [Quadro P2200]
-        Subsystem: ...
-        Kernel driver in use: vfio-pci     ← correct
-        Kernel modules: nouveau
-
 04:00.0 VGA compatible controller [10de:1c35]: NVIDIA GP106GL [Quadro P2200]
         Subsystem: ...
         Kernel driver in use: vfio-pci     ← correct
@@ -2060,7 +2041,7 @@ grep CMDLINE /etc/default/grub
 | 3.5" drives in non-RAID mode, visible to Linux | ✓ |
 | Physical bay → by-id map documented | ✓ |
 | VM configs updated with real drive paths and GPU addresses | ✓ |
-| IOMMU active, both GPUs claimed by vfio-pci | ✓ |
+| IOMMU active, GPU claimed by vfio-pci | ✓ |
 
 ---
 
@@ -2071,7 +2052,7 @@ their hardware (GPUs, Coral USB, raw data drives), installs Ubuntu Server inside
 each one, and verifies SSH access.
 
 **Prerequisites from earlier phases:**
-- GPU passthrough working: both GPUs show `vfio-pci` in `lspci` (Phase 10)
+- GPU passthrough working: GPU shows `vfio-pci` in `lspci` (Phase 10)
 - Bay map filled in: `/dev/disk/by-id/...` paths known for all 12 drives (Phase 9)
 - VM config examples updated with real paths and PCI addresses (Phases 9–10)
 - Fan control and stagger services installed and verified (Phase 7)
@@ -2209,12 +2190,12 @@ Click **Add** → **PCI Device**.
 
 | Field | Value |
 |-------|-------|
-| Raw Device | select GPU #1 from the dropdown (shows PCI address + model name) |
+| Raw Device | select the GPU from the dropdown (shows PCI address + model name) |
 | All Functions | **checked** |
 | Primary GPU | **checked** |
 | PCI-Express | **checked** |
 
-> **All Functions** passes both `03:00.0` (VGA) and `03:00.1` (HDMI audio) as
+> **All Functions** passes both `04:00.0` (VGA) and `04:00.1` (HDMI audio) as
 > a unit. Without it the audio sibling stays on the host.
 
 > **Primary GPU** (`x-vga=1` in the config) tells the VM this is its display
@@ -2307,7 +2288,7 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.7 — Create VM 101 (general purpose with GPU)
+### Step 11.7 — Create VM 101 (general purpose, no GPU)
 
 Click **Create VM** in the web UI.
 
@@ -2320,13 +2301,7 @@ Use the same wizard settings as VM 100 except:
 | Memory | 16384 MiB |
 | Disk | 64 GiB on local-lvm |
 
-After the wizard completes, add the second GPU in the **Hardware** tab:
-
-Click **Add** → **PCI Device** → select GPU #2 (e.g. `0000:04:00.0 NVIDIA
-your GPU model`). Check **All Functions**, **Primary GPU**,
-**PCI-Express**. Click **Add**.
-
-No Coral USB for VM 101.
+No GPU, no Coral USB for VM 101 — the single GPU is already assigned to VM 100.
 
 Add the two data drives via CLI:
 
@@ -2443,8 +2418,8 @@ Leave the large data drives untouched — they are for you to configure later.
 | What is done | Status |
 |---|---|
 | Ubuntu Server 24.04 ISO uploaded to Proxmox | ✓ |
-| VM 100 created: GPU #1, Coral USB (×2), 8 raw data drives | ✓ |
-| VM 101 created: GPU #2, 2 raw data drives | ✓ |
+| VM 100 created: GPU, Coral USB (×2), 8 raw data drives | ✓ |
+| VM 101 created: no GPU, 2 raw data drives | ✓ |
 | VM 102 created: 2 raw data drives, no GPU | ✓ |
 | Ubuntu installed and SSH accessible in all three VMs | ✓ |
 
@@ -2491,7 +2466,7 @@ Expected:
 ```
 
 > **The PCI address inside the VM (e.g. `06:10.0`) will differ from the host
-> address (`03:00.0`).** QEMU re-numbers the virtual PCIe bus. This is normal.
+> address (`04:00.0`).** QEMU re-numbers the virtual PCIe bus. This is normal.
 
 If neither device appears, check that `hostpci0` is set correctly in
 `/etc/pve/qemu-server/100.conf` on the Proxmox host, and that Phase 10
@@ -2896,11 +2871,11 @@ stats. Navigate to **System → Stats** to confirm:
 
 | Layer | Component | Running |
 |-------|-----------|---------|
-| Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU(s), Coral USB | ✓ |
-| Proxmox host | IOMMU active, GPUs held by vfio-pci | ✓ |
+| Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU, Coral USB | ✓ |
+| Proxmox host | IOMMU active, GPU held by vfio-pci | ✓ |
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
 | VM 100 | Ubuntu 24.04, GPU passthrough, 8 drives, Frigate NVR | ✓ |
-| VM 101 | Ubuntu 24.04, GPU passthrough, 2 drives | ready |
+| VM 101 | Ubuntu 24.04, no GPU, 2 drives | ready |
 | VM 102 | Ubuntu 24.04, 2 drives | ready |
 
 ---

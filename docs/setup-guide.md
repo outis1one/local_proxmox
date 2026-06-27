@@ -171,13 +171,18 @@ Proxmox shows "no valid subscription" warnings when using the enterprise repo
 without a license. Switch to the free repo:
 
 ```bash
-# Disable enterprise repo
-echo "# disabled" > /etc/apt/sources.list.d/pve-enterprise.list
-echo "# disabled" > /etc/apt/sources.list.d/ceph.list
+# Disable enterprise repos — PVE9 uses .sources (DEB822 format), not .list
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/pve-enterprise.sources
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/ceph.sources
+# Also disable any legacy .list versions if present
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/pve-enterprise.list
+echo "# disabled - no subscription" > /etc/apt/sources.list.d/ceph.list
 
-# Add no-subscription repo
-echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
+# Add no-subscription repos (trixie = Proxmox 9 / Debian 13)
+echo "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" \
   > /etc/apt/sources.list.d/pve-no-subscription.list
+echo "deb http://download.proxmox.com/debian/ceph-squid trixie no-subscription" \
+  > /etc/apt/sources.list.d/ceph-no-subscription.list
 
 apt update && apt dist-upgrade -y
 reboot

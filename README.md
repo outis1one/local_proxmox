@@ -2061,9 +2061,14 @@ each one, and verifies SSH access.
 
 ### Step 11.1 — Download the Ubuntu installer ISO
 
-The Frigate VM needs Ubuntu Server 24.04 LTS. On your workstation, go to
-**ubuntu.com/download/server** and download
-`ubuntu-24.04.1-live-server-amd64.iso` (or the latest 24.04 point release).
+**VM 100 (Frigate)** needs Ubuntu Server 24.04.4 LTS.
+**VM 101 (desktop)** needs Ubuntu Desktop 24.04.4 LTS.
+
+Download both on your workstation:
+- Server: `ubuntu.com/download/server` → `ubuntu-24.04.4-live-server-amd64.iso`
+- Desktop: `ubuntu.com/download/desktop` → `ubuntu-24.04.4-desktop-amd64.iso`
+
+Or download directly on the Proxmox host (see Step 11.2).
 
 ---
 
@@ -2074,8 +2079,8 @@ In the **Proxmox web UI** (`https://192.168.1.10:8006`):
 1. In the left panel, click your node name (e.g. **pve**) → **local** storage
 2. Click the **ISO Images** tab
 3. Click **Upload**
-4. Click **Select File** → choose the `ubuntu-24.04.*-live-server-amd64.iso`
-5. Click **Upload**
+4. Click **Select File** → choose your ISO, click **Upload**
+5. Repeat for the second ISO
 
 The upload progress bar shows while transferring. When it completes the ISO
 appears in the list.
@@ -2083,9 +2088,10 @@ appears in the list.
 > **Faster alternative** — download directly on the Proxmox host:
 > ```bash
 > cd /var/lib/vz/template/iso/
-> curl -LO "https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso"
+> curl -LO "https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso"
+> curl -LO "https://releases.ubuntu.com/24.04/ubuntu-24.04.4-desktop-amd64.iso"
 > ```
-> The ISO appears in the web UI list immediately after the download finishes.
+> Both ISOs appear in the web UI list immediately after downloading.
 
 ---
 
@@ -2107,7 +2113,7 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| ISO image | ubuntu-24.04.1-live-server-amd64.iso |
+| ISO image | ubuntu-24.04.4-live-server-amd64.iso |
 | OS Type | Linux |
 | Version | 6.x - 2.6 Kernel |
 
@@ -2288,20 +2294,22 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.7 — Create VM 101 (general purpose, no GPU)
+### Step 11.7 — Create VM 101 (Ubuntu Desktop, no GPU)
 
 Click **Create VM** in the web UI.
-
-Use the same wizard settings as VM 100 except:
 
 | Tab | Value |
 |-----|-------|
 | General | VM ID: **101**, Name: **vm101** |
+| OS | ubuntu-24.04.4-desktop-amd64.iso |
 | CPU | 8 cores, host |
 | Memory | 16384 MiB |
 | Disk | 64 GiB on local-lvm |
 
-No GPU, no Coral USB for VM 101 — the single GPU is already assigned to VM 100.
+No GPU, no Coral USB — the single GPU is already assigned to VM 100.
+
+> VM 101 uses Ubuntu Desktop for a full GUI environment accessible via
+> Proxmox's noVNC console or RDP.
 
 Add the two data drives via CLI:
 
@@ -2405,8 +2413,12 @@ If SSH connects, close the noVNC console tab — you will not need it again.
 
 ### Step 11.11 — Install Ubuntu in VMs 101 and 102
 
-Repeat steps 11.9–11.10 for VMs 101 and 102. The installer flow is identical.
-Use `vm101` and `vm102` as hostnames.
+**VM 101 (Desktop):** Start the VM, open the console, and work through the
+Ubuntu Desktop installer. Use `vm101` as the hostname. The desktop installer
+is graphical — click through the screens. When prompted for storage, install
+only to the 64GB OS disk; leave the data drives untouched.
+
+**VM 102 (Server):** Repeat steps 11.9–11.10. Use `vm102` as the hostname.
 
 During the storage step in each VM: install Ubuntu only on the small OS disk.
 Leave the large data drives untouched — they are for you to configure later.
@@ -2417,7 +2429,7 @@ Leave the large data drives untouched — they are for you to configure later.
 
 | What is done | Status |
 |---|---|
-| Ubuntu Server 24.04 ISO uploaded to Proxmox | ✓ |
+| Ubuntu Server 24.04.4 and Desktop 24.04.4 ISOs uploaded to Proxmox | ✓ |
 | VM 100 created: GPU, Coral USB (×2), 8 raw data drives | ✓ |
 | VM 101 created: no GPU, 2 raw data drives | ✓ |
 | VM 102 created: 2 raw data drives, no GPU | ✓ |
@@ -2432,7 +2444,7 @@ creates a ZFS storage pool from the 8 data drives, then deploys Frigate NVR
 with GPU-accelerated video decode and Coral object detection.
 
 **Prerequisites:**
-- VM 100 running Ubuntu Server 24.04 with SSH access (Phase 11)
+- VM 100 running Ubuntu Server 24.04.4 with SSH access (Phase 11)
 - NVIDIA GPU passed through (PCIe device visible in guest)
 - Google Coral USB passed through (USB device visible in guest)
 - 8 raw data drives visible as block devices inside the VM
@@ -2874,9 +2886,9 @@ stats. Navigate to **System → Stats** to confirm:
 | Hardware | Dell R730xd, PERC H730, 12 drives, NVIDIA GPU, Coral USB | ✓ |
 | Proxmox host | IOMMU active, GPU held by vfio-pci | ✓ |
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
-| VM 100 | Ubuntu 24.04, GPU passthrough, 8 drives, Frigate NVR | ✓ |
-| VM 101 | Ubuntu 24.04, no GPU, 2 drives | ready |
-| VM 102 | Ubuntu 24.04, 2 drives | ready |
+| VM 100 | Ubuntu Server 24.04.4, GPU passthrough, 8 drives, Frigate NVR | ✓ |
+| VM 101 | Ubuntu Desktop 24.04.4, no GPU, 2 drives | ready |
+| VM 102 | Ubuntu Server 24.04.4, 2 drives | ready |
 
 ---
 

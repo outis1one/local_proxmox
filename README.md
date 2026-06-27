@@ -2353,7 +2353,69 @@ find it automatically.
 
 ---
 
-### Step 11.6 — Add raw data drives to VM 100 via CLI
+### Step 11.6 — Enable nested virtualization on the Proxmox host
+
+VM 100 will run a nested Windows VM (VirtualBox) for Sync.com. This requires
+exposing hardware virtualization extensions to the guest. Run on the
+**Proxmox host**:
+
+```bash
+# Check current state — Y = already enabled, N = needs enabling
+cat /sys/module/kvm_intel/parameters/nested
+
+# Enable nested virt persistently
+echo "options kvm-intel nested=Y" > /etc/modprobe.d/kvm-intel.conf
+
+# Reload the module (or reboot — reboot is safer)
+modprobe -r kvm_intel && modprobe kvm_intel
+
+# Verify
+cat /sys/module/kvm_intel/parameters/nested   # should print Y
+```
+
+> **VM 100 must have CPU type set to `host`** (already configured in Step 11.3).
+> Without `host`, the VM does not see the VT-x extensions and VirtualBox inside
+> it will run in slow emulation mode or fail to start 64-bit guests.
+
+Verify inside VM 100 after it boots:
+
+```bash
+# Should show vmx flag — confirms VT-x is visible to the guest
+grep -m1 vmx /proc/cpuinfo
+```
+
+---
+
+### Step 11.7 — Find drive IDs on the Proxmox host
+
+> **Do not use `lsusb`** — that lists USB devices only. HDDs connected via the
+> PERC H730 in JBOD mode appear as regular block devices.
+
+SSH into the Proxmox host and run:
+
+```bash
+# See all drives with model, size, and device path
+lsblk -o NAME,SIZE,MODEL,SERIAL,TYPE | grep disk
+
+# Get stable by-id paths (use these — not /dev/sdX which can change on reboot)
+ls -la /dev/disk/by-id/ | grep -v part | grep -v wwn
+```
+
+Example output:
+
+```
+scsi-35000cca23b7d4eb8 -> ../../sdb    # Bay 1 — HGST 4TB
+scsi-35000cca23b5e1234 -> ../../sdc    # Bay 2 — HGST 4TB
+scsi-35000cca23bab5678 -> ../../sdd    # Bay 3 — HGST 4TB
+...
+```
+
+> Use the `scsi-3...` or `ata-...` names — these are stable and tied to the
+> drive's serial number. `/dev/sdb` can shift if drives are added or removed.
+
+---
+
+### Step 11.8 — Add raw data drives to VM 100 via CLI
 
 > **You do NOT add bare drives to Proxmox storage.** Proxmox storage (local-lvm,
 > local, etc.) is only for VM disk images. Raw drives are passed directly to the
@@ -2367,8 +2429,7 @@ Proxmox CLI. SSH into the host:
 ssh root@192.168.1.10
 ```
 
-Run one `qm set` command per drive, replacing the `PLACEHOLDER_BAYx` paths
-with the real by-id paths from your `hardware-layout.md`:
+Run one `qm set` command per drive using the by-id paths from Step 11.7:
 
 ```bash
 qm set 100 -scsi1 /dev/disk/by-id/PLACEHOLDER_BAY1
@@ -2402,7 +2463,7 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.7 — Create VM 101 (Ubuntu Desktop + GPU)
+### Step 11.9 — Create VM 101 (Ubuntu Desktop + GPU)
 
 Click **Create VM** in the web UI.
 
@@ -2448,29 +2509,81 @@ qm set 101 -scsi2 /dev/disk/by-id/PLACEHOLDER_BAY10
 
 ---
 
-### Step 11.8 — Create VM 102 (storage/utility, no GPU)
+### Step 11.10 — Create VM 102 (Windows 11, Sync.com)
+
+VM 102 is a Windows 11 VM that runs the Sync.com desktop client for cloud
+backup. Syncthing on VM 100 mirrors NAS data to VM 102's local NTFS drive,
+and Sync.com picks it up natively.
 
 Click **Create VM** again.
 
-| Tab | Value |
-|-----|-------|
-| General | VM ID: **102**, Name: **vm102** |
-| CPU | 4 cores, host |
-| Memory | 8192 MiB |
-| Disk | 32 GiB on local-lvm |
+**Tab: General**
 
-No PCI device, no USB devices.
+| Field | Value |
+|-------|-------|
+| VM ID | 102 |
+| Name | windows-sync |
 
-Add the two data drives:
+**Tab: OS**
+
+| Field | Value |
+|-------|-------|
+| ISO image | windows11 ISO (upload to local storage first) |
+| OS Type | Microsoft Windows |
+| Version | 11/2022/2025 |
+
+**Tab: System**
+
+| Field | Value |
+|-------|-------|
+| Graphic card | Default (VirtIO) |
+| Machine | q35 |
+| BIOS | OVMF (UEFI) |
+| Add EFI Disk | checked |
+| EFI Storage | local-lvm |
+| Pre-Enrolled Keys | **checked** (Windows 11 requires Secure Boot) |
+| Add TPM | **checked**, TPM Storage: local-lvm (Windows 11 requires TPM 2.0) |
+| SCSI Controller | VirtIO SCSI Single |
+
+**Tab: Disks**
+
+| Field | Value |
+|-------|-------|
+| Disk size (GiB) | 128 |
+| Storage | local-lvm |
+| Cache | Write back |
+
+**Tab: CPU**
+
+| Field | Value |
+|-------|-------|
+| Sockets | 1 |
+| Cores | 4 |
+| Type | host |
+
+**Tab: Memory**
+
+| Field | Value |
+|-------|-------|
+| Memory (MiB) | 8192 |
+
+Click **Finish**.
+
+Then pass a dedicated data drive to VM 102 for Sync.com to sync to:
 
 ```bash
-qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_BAY11
-qm set 102 -scsi2 /dev/disk/by-id/PLACEHOLDER_BAY12
+# Use one of your spare HDDs — Sync.com data lives here (formatted NTFS in Windows)
+qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_SYNC_DRIVE
 ```
+
+> **Why a dedicated drive?** Sync.com needs a real local NTFS disk — not a
+> network share, not a shared folder. Windows formats this drive NTFS and
+> Sync.com treats it as a native local drive. Syncthing on VM 100 pushes
+> data to it over the LAN.
 
 ---
 
-### Step 11.9 — Install Ubuntu in VM 100
+### Step 11.11 — Install Ubuntu in VM 100
 
 In the left panel, click **100 (frigate)** → click **Start** (▶ button).
 
@@ -2510,7 +2623,7 @@ automatically. When the login prompt appears in the console, the OS is ready.
 
 ---
 
-### Step 11.10 — Find VM 100's IP and test SSH
+### Step 11.12 — Find VM 100's IP and test SSH
 
 Log in at the console. Check the assigned IP:
 
@@ -2539,7 +2652,7 @@ If SSH connects, close the noVNC console tab — you will not need it again.
 
 ---
 
-### Step 11.11 — Install Ubuntu in VMs 101 and 102
+### Step 11.13 — Install Ubuntu in VM 101
 
 **VM 101 (Desktop):** Start the VM, open the console, and work through the
 Ubuntu Desktop installer. Use `vm101` as the hostname. The desktop installer

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dell R730xd fan speed control for third-party PCIe cards (Quadro P2200, etc.)
+# Dell R730xd fan speed control for third-party PCIe cards (non-Dell GPUs)
 #
 # iDRAC detects non-Dell GPUs and slams fans to 100% indefinitely.
 # This script disables iDRAC automatic fan control and manages speed based

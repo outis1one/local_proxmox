@@ -58,12 +58,19 @@ passthrough to work. Missing VT-d is the #1 reason passthrough fails silently.
 
 | Menu path | Setting | Value |
 |-----------|---------|-------|
-| Processor Settings | Virtualization Technology (VT-x) | **Enabled** |
-| Processor Settings | VT for Direct I/O (VT-d) | **Enabled** |
+| Processor Settings | Virtualization Technology | **Enabled** |
+| Processor Settings | Virtualization Technology for Direct I/O | **Enabled** |
 | PCI Configuration | SR-IOV Global Enable | **Enabled** |
 | Boot Settings → BIOS Boot Settings | Boot Mode | **UEFI** (not Legacy/BIOS) |
-| Power Management | Hard Disk Drive Sequencing | **Enabled** |
-| Power Management | Power Management Policy | **Performance** |
+| System Profile Settings | System Profile | **Custom** |
+| System Profile Settings | Hard Disk Drive Sequencing | **Enabled** |
+| System Profile Settings | CPU Power Management | **Maximum Performance** |
+
+> **BIOS 2.19.0 menu changes:** "VT for Direct I/O" is now labelled
+> **"Virtualization Technology for Direct I/O"** — it's on the same
+> Processor Settings page, scroll past the first VT toggle. The old
+> "Power Management" top-level section is now **"System Profile Settings"**;
+> set System Profile to **Custom** first or the sub-options stay hidden.
 
 > **Boot Mode must be UEFI.** Proxmox's EFI boot tool (`proxmox-boot-tool`)
 > only works with UEFI. Legacy BIOS mode breaks the GPU passthrough script.

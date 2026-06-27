@@ -2190,14 +2190,26 @@ Click **Next**.
 | Sockets | 1 |
 | Cores | 12 |
 | Type | **host** |
+| Enable NUMA | **checked** |
 
 > **Why `host` CPU type?** It exposes the real CPU feature flags, which NVIDIA
 > drivers expect. Without it, `nvidia-smi` may work but performance-sensitive
 > GPU features fail silently.
 >
-> **Why 12 cores?** The E5-2660 v4 has 14 cores per socket (28 total). Giving
-> VM 100 12 cores leaves the host and other VMs plenty of headroom. Sockets: 1
-> keeps the VM on a single NUMA node for lower memory latency.
+> **Why 12 cores / 1 socket?** The E5-2660 v4 has 14 cores per socket (28
+> total across both CPUs). Keeping Sockets at 1 pins the VM to a single NUMA
+> node — all memory accesses stay local to that socket's RAM channels, avoiding
+> the ~30–40ns penalty of crossing to the other socket. Give VM 100 12 cores
+> from socket 0, VM 101 gets 6 cores from socket 1.
+>
+> **Enable NUMA** tells Proxmox to allocate RAM from the same socket the vCPUs
+> are pinned to. Without it the RAM may come from the wrong socket even if
+> Sockets is set to 1. The checkbox is in **Processors → Edit → Enable NUMA**
+> (not in the Memory dialog).
+>
+> **nested-virt flag** — you will see this in Extra CPU Flags. Leave it at
+> Default; it is automatically enabled when CPU type is `host` on Intel, which
+> is what allows VirtualBox/WinApps to run inside this VM.
 
 Click **Next**.
 

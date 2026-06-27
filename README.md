@@ -2302,6 +2302,41 @@ Click **Add**.
 
 ---
 
+### Step 11.4b — Add USB 3.0 PCIe card to VM 100
+
+Still in VM 100's **Hardware** tab. Click **Add** → **PCI Device**.
+
+First, identify the card's PCI address on the Proxmox host:
+
+```bash
+lspci | grep -i usb
+# Look for the PCIe card — e.g.:
+# 82:00.0 USB controller: VIA Technologies, Inc. VL805/806 xHCI USB 3.0 Controller (rev 01)
+```
+
+In the dialog:
+
+| Field | Value |
+|-------|-------|
+| Raw Device | selected |
+| Device | 0000:82:00.0 (your address from lspci) |
+| All Functions | checked |
+| PCI-Express | checked |
+| ROM-Bar | checked |
+| Primary GPU | unchecked |
+
+Click **Add**.
+
+All ports on the USB card are now owned by VM 100. The Coral TPU for VM 101
+(Frigate) uses one of the server's built-in rear USB ports instead — it only
+needs USB 3.0 speed and works on any port.
+
+> **VL805/VIA cards** are single-function (one PCI address), so All Functions
+> has no effect but does no harm. ASMedia and other multi-function cards
+> benefit from it more.
+
+---
+
 ### Step 11.5 — Add Coral USB to VM 101
 
 In the left panel, click **101** → **Hardware** tab.

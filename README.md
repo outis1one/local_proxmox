@@ -2132,12 +2132,15 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
+| Graphic card | **none** |
 | Machine | q35 |
 | BIOS | OVMF (UEFI) |
 | Add EFI Disk | checked |
 | EFI Storage | local-lvm |
 | Pre-Enrolled Keys | **unchecked** |
 | SCSI Controller | VirtIO SCSI Single |
+| Qemu Agent | checked |
+| Add TPM | unchecked |
 
 > **Why q35 + OVMF?** GPU passthrough requires PCIe bus emulation, which only
 > `q35` provides. `i440fx` (the older default) does not support PCIe correctly
@@ -2145,6 +2148,17 @@ Click **Next**.
 
 > **Pre-Enrolled Keys must be unchecked.** Enabling it turns on Secure Boot,
 > which blocks NVIDIA kernel modules from loading in the guest.
+
+> **Graphic card: none** — this VM gets a real GPU passed through, so the
+> virtual display is disabled. Console access works via the passed-through GPU
+> once Ubuntu boots.
+
+> **Qemu Agent** — check this now, then after Ubuntu is installed run
+> `apt install qemu-guest-agent` inside the VM. It enables clean shutdown from
+> the Proxmox UI, shows the VM's IP address in the summary panel, and ensures
+> snapshots flush disk buffers before freezing.
+
+> **TPM** — only required for Windows 11. Leave unchecked for Ubuntu.
 
 Click **Next**.
 
@@ -2158,6 +2172,12 @@ Click **Next**.
 | Cache | Write back |
 | Discard | checked (if local-lvm is on SSD) |
 
+> **Write back** acknowledges writes to the VM as soon as they land in the
+> host's RAM cache, before they hit disk — faster than "No cache" (the
+> default). Safe enough for an OS disk on a server with redundant PSUs.
+> For the raw HDD passthrough later, cache mode is irrelevant — those drives
+> manage their own caching.
+
 Click **Next**.
 
 **Tab: CPU**
@@ -2165,12 +2185,16 @@ Click **Next**.
 | Field | Value |
 |-------|-------|
 | Sockets | 1 |
-| Cores | 8 |
-| Type | host |
+| Cores | 12 |
+| Type | **host** |
 
 > **Why `host` CPU type?** It exposes the real CPU feature flags, which NVIDIA
 > drivers expect. Without it, `nvidia-smi` may work but performance-sensitive
 > GPU features fail silently.
+>
+> **Why 12 cores?** The E5-2660 v4 has 14 cores per socket (28 total). Giving
+> VM 100 12 cores leaves the host and other VMs plenty of headroom. Sockets: 1
+> keeps the VM on a single NUMA node for lower memory latency.
 
 Click **Next**.
 
@@ -2178,7 +2202,23 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| Memory (MiB) | 16384 |
+| Memory (MiB) | 49152 |
+
+Common MiB values for reference:
+
+| GiB | MiB to enter |
+|-----|-------------|
+| 8 GiB | 8192 |
+| 16 GiB | 16384 |
+| 32 GiB | 32768 |
+| 48 GiB | 49152 |
+| 64 GiB | 65536 |
+| 96 GiB | 98304 |
+| 128 GiB | 131072 |
+
+> 48 GiB (49152) is a good starting point for a desktop+NAS VM on a server
+> with 128–256 GiB total RAM. Adjust based on how much you want to reserve for
+> the host and other VMs.
 
 Click **Next**.
 
@@ -2187,8 +2227,12 @@ Click **Next**.
 | Field | Value |
 |-------|-------|
 | Bridge | vmbr0 |
-| Model | VirtIO (paravirt) |
+| Model | VirtIO (paravirtualized) |
+| VLAN Tag | no VLAN |
 | Firewall | checked |
+
+> `vmbr0` is the main LAN bridge. No VLAN tag needed for the desktop VM.
+> VirtIO is the fastest virtual NIC — always use it over e1000 or rtl8139.
 
 Click **Next**, then **Finish**.
 
@@ -2309,6 +2353,11 @@ find it automatically.
 
 ### Step 11.6 — Add raw data drives to VM 100 via CLI
 
+> **You do NOT add bare drives to Proxmox storage.** Proxmox storage (local-lvm,
+> local, etc.) is only for VM disk images. Raw drives are passed directly to the
+> VM as block devices — they bypass Proxmox storage entirely and appear inside
+> the VM as `/dev/sdb`, `/dev/sdc`, etc. No storage pool setup required.
+
 The web UI does not support raw block device passthrough cleanly — use the
 Proxmox CLI. SSH into the host:
 
@@ -2359,9 +2408,17 @@ Click **Create VM** in the web UI.
 |-----|-------|
 | General | VM ID: **101**, Name: **vm101** |
 | OS | ubuntu-24.04.4-desktop-amd64.iso |
+| System → Graphic card | **none** |
+| System → Machine | q35 |
+| System → BIOS | OVMF (UEFI) |
+| System → Pre-Enrolled Keys | **unchecked** |
 | CPU | 8 cores, host |
 | Memory | 16384 MiB |
 | Disk | 64 GiB on local-lvm |
+
+> **Graphic card must be set to "none"** when passing through a real GPU.
+> Leaving it as VirtIO-GPU creates a conflicting virtual display adapter that
+> interferes with the passed-through card.
 
 After the wizard completes, add the GPU in the **Hardware** tab:
 

@@ -2353,7 +2353,69 @@ find it automatically.
 
 ---
 
-### Step 11.6 — Add raw data drives to VM 100 via CLI
+### Step 11.6 — Enable nested virtualization on the Proxmox host
+
+VM 100 will run a nested Windows VM (VirtualBox) for Sync.com. This requires
+exposing hardware virtualization extensions to the guest. Run on the
+**Proxmox host**:
+
+```bash
+# Check current state — Y = already enabled, N = needs enabling
+cat /sys/module/kvm_intel/parameters/nested
+
+# Enable nested virt persistently
+echo "options kvm-intel nested=Y" > /etc/modprobe.d/kvm-intel.conf
+
+# Reload the module (or reboot — reboot is safer)
+modprobe -r kvm_intel && modprobe kvm_intel
+
+# Verify
+cat /sys/module/kvm_intel/parameters/nested   # should print Y
+```
+
+> **VM 100 must have CPU type set to `host`** (already configured in Step 11.3).
+> Without `host`, the VM does not see the VT-x extensions and VirtualBox inside
+> it will run in slow emulation mode or fail to start 64-bit guests.
+
+Verify inside VM 100 after it boots:
+
+```bash
+# Should show vmx flag — confirms VT-x is visible to the guest
+grep -m1 vmx /proc/cpuinfo
+```
+
+---
+
+### Step 11.7 — Find drive IDs on the Proxmox host
+
+> **Do not use `lsusb`** — that lists USB devices only. HDDs connected via the
+> PERC H730 in JBOD mode appear as regular block devices.
+
+SSH into the Proxmox host and run:
+
+```bash
+# See all drives with model, size, and device path
+lsblk -o NAME,SIZE,MODEL,SERIAL,TYPE | grep disk
+
+# Get stable by-id paths (use these — not /dev/sdX which can change on reboot)
+ls -la /dev/disk/by-id/ | grep -v part | grep -v wwn
+```
+
+Example output:
+
+```
+scsi-35000cca23b7d4eb8 -> ../../sdb    # Bay 1 — HGST 4TB
+scsi-35000cca23b5e1234 -> ../../sdc    # Bay 2 — HGST 4TB
+scsi-35000cca23bab5678 -> ../../sdd    # Bay 3 — HGST 4TB
+...
+```
+
+> Use the `scsi-3...` or `ata-...` names — these are stable and tied to the
+> drive's serial number. `/dev/sdb` can shift if drives are added or removed.
+
+---
+
+### Step 11.8 — Add raw data drives to VM 100 via CLI
 
 > **You do NOT add bare drives to Proxmox storage.** Proxmox storage (local-lvm,
 > local, etc.) is only for VM disk images. Raw drives are passed directly to the
@@ -2367,8 +2429,7 @@ Proxmox CLI. SSH into the host:
 ssh root@192.168.1.10
 ```
 
-Run one `qm set` command per drive, replacing the `PLACEHOLDER_BAYx` paths
-with the real by-id paths from your `hardware-layout.md`:
+Run one `qm set` command per drive using the by-id paths from Step 11.7:
 
 ```bash
 qm set 100 -scsi1 /dev/disk/by-id/PLACEHOLDER_BAY1
@@ -2402,7 +2463,7 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 ---
 
-### Step 11.7 — Create VM 101 (Ubuntu Desktop + GPU)
+### Step 11.9 — Create VM 101 (Ubuntu Desktop + GPU)
 
 Click **Create VM** in the web UI.
 
@@ -2448,69 +2509,115 @@ qm set 101 -scsi2 /dev/disk/by-id/PLACEHOLDER_BAY10
 
 ---
 
-### Step 11.8 — Create VM 102 (storage/utility, no GPU)
+### Step 11.10 — Create VM 102 (Windows 11, Sync.com)
+
+VM 102 is a Windows 11 VM that runs the Sync.com desktop client for cloud
+backup. Syncthing on VM 100 mirrors NAS data to VM 102's local NTFS drive,
+and Sync.com picks it up natively.
 
 Click **Create VM** again.
 
-| Tab | Value |
-|-----|-------|
-| General | VM ID: **102**, Name: **vm102** |
-| CPU | 4 cores, host |
-| Memory | 8192 MiB |
-| Disk | 32 GiB on local-lvm |
+**Tab: General**
 
-No PCI device, no USB devices.
+| Field | Value |
+|-------|-------|
+| VM ID | 102 |
+| Name | windows-sync |
 
-Add the two data drives:
+**Tab: OS**
+
+| Field | Value |
+|-------|-------|
+| ISO image | windows11 ISO (upload to local storage first) |
+| OS Type | Microsoft Windows |
+| Version | 11/2022/2025 |
+
+**Tab: System**
+
+| Field | Value |
+|-------|-------|
+| Graphic card | Default (VirtIO) |
+| Machine | q35 |
+| BIOS | OVMF (UEFI) |
+| Add EFI Disk | checked |
+| EFI Storage | local-lvm |
+| Pre-Enrolled Keys | **checked** (Windows 11 requires Secure Boot) |
+| Add TPM | **checked**, TPM Storage: local-lvm (Windows 11 requires TPM 2.0) |
+| SCSI Controller | VirtIO SCSI Single |
+
+**Tab: Disks**
+
+| Field | Value |
+|-------|-------|
+| Disk size (GiB) | 128 |
+| Storage | local-lvm |
+| Cache | Write back |
+
+**Tab: CPU**
+
+| Field | Value |
+|-------|-------|
+| Sockets | 1 |
+| Cores | 4 |
+| Type | host |
+
+**Tab: Memory**
+
+| Field | Value |
+|-------|-------|
+| Memory (MiB) | 8192 |
+
+Click **Finish**.
+
+Then pass a dedicated data drive to VM 102 for Sync.com to sync to:
 
 ```bash
-qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_BAY11
-qm set 102 -scsi2 /dev/disk/by-id/PLACEHOLDER_BAY12
+# Use one of your spare HDDs — Sync.com data lives here (formatted NTFS in Windows)
+qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_SYNC_DRIVE
 ```
 
+> **Why a dedicated drive?** Sync.com needs a real local NTFS disk — not a
+> network share, not a shared folder. Windows formats this drive NTFS and
+> Sync.com treats it as a native local drive. Syncthing on VM 100 pushes
+> data to it over the LAN.
+
 ---
 
-### Step 11.9 — Install Ubuntu in VM 100
+### Step 11.11 — Install Ubuntu Desktop in VM 100
 
-In the left panel, click **100 (frigate)** → click **Start** (▶ button).
+In the left panel, click **100** → click **Start** (▶ button).
 
-Open the console: click **Console** at the top. This opens a noVNC session in
-your browser.
+Open the console: click **Console** at the top. This opens a noVNC session.
 
-Wait for the Ubuntu GRUB menu to appear. Select **Try or Install Ubuntu
-Server** and press Enter.
+Wait for the Ubuntu GRUB menu → select **Try or Install Ubuntu** → press Enter.
 
-Work through the Ubuntu Server installer:
+Work through the Ubuntu Desktop installer:
 
 1. **Language:** English (or your preference)
-2. **Keyboard:** your layout
-3. **Type of install:** Ubuntu Server (not minimised — minimised is missing tools
-   you need)
-4. **Network connections:** the VirtIO NIC auto-detects and gets a DHCP IP.
-   **Note the IP address** — you will use it for SSH in the next step.
-5. **Proxy:** leave blank
-6. **Ubuntu archive mirror:** leave at default (or a nearby mirror)
-7. **Storage:**
-   - **Guided storage layout** → **Use an entire disk**
-   - Select the **64GB** virtual disk (the scsi0 OS disk — shows as ~64.4 GB)
-   - Leave LVM enabled
-   - **Do not select the large 3.6TB data drives** — those will become a ZFS
-     pool in Phase 12
-8. **Profile setup:**
-   - Server's name: `frigate`
-   - Username: `ubuntu` (or your preference)
-   - Password: something strong
-9. **SSH:** check **Install OpenSSH server** → Yes
-10. **Featured server snaps:** skip all
+2. **Accessibility:** skip
+3. **Keyboard:** your layout
+4. **Connect to internet:** the VirtIO NIC auto-detects, gets DHCP — continue
+5. **What do you want to do?** → **Install Ubuntu**
+6. **How do you want to install?** → **Interactive installation**
+7. **Applications:** Default selection
+8. **Optimise your computer:** check both boxes (install restricted extras, download updates)
+9. **Disk setup:** → **Manual partitioning** or **Erase disk and install Ubuntu**
+   - Select the **64 GiB** virtual disk (scsi0 — the small one)
+   - **Do not touch the large data drives** — leave them completely alone
+10. **Time zone:** your location
+11. **Create account:**
+    - Name / hostname: `vm100`
+    - Username: your preference
+    - Password: something strong
+    - **Enable auto-login** if this is a desktop you sit at
+12. **Ready to install:** click **Install**
 
-Click **Done** on the summary screen. The install takes 5–10 minutes.
-
-When installation finishes: **Reboot Now**. Proxmox ejects the ISO
-automatically. When the login prompt appears in the console, the OS is ready.
+Install takes 10–15 minutes. When done click **Restart Now**. Proxmox ejects
+the ISO automatically.
 
 ---
 
-### Step 11.10 — Find VM 100's IP and test SSH
+### Step 11.12 — Find VM 100's IP and test SSH
 
 Log in at the console. Check the assigned IP:
 
@@ -2534,22 +2641,58 @@ ssh ubuntu@192.168.1.XXX
 If SSH connects, close the noVNC console tab — you will not need it again.
 
 > **Recommended:** Set a DHCP reservation in your router for VM 100's MAC
-> address so its IP stays stable. Frigate's web UI and stream URLs depend on
-> a predictable IP.
+> address so its IP stays stable.
 
 ---
 
-### Step 11.11 — Install Ubuntu in VMs 101 and 102
+### Step 11.13 — Disable Wayland, force Xorg
 
-**VM 101 (Desktop):** Start the VM, open the console, and work through the
-Ubuntu Desktop installer. Use `vm101` as the hostname. The desktop installer
-is graphical — click through the screens. When prompted for storage, install
-only to the 64GB OS disk; leave the data drives untouched.
+Ubuntu 24.04 defaults to Wayland. WinApps file sharing (`\\tsclient\home`)
+breaks under Wayland due to FreeRDP limitations — tsclient mounts as empty.
+Force Xorg system-wide with one command:
 
-**VM 102 (Server):** Repeat steps 11.9–11.10. Use `vm102` as the hostname.
+```bash
+ssh ubuntu@192.168.1.XXX
 
-During the storage step in each VM: install Ubuntu only on the small OS disk.
-Leave the large data drives untouched — they are for you to configure later.
+# Uncomment WaylandEnable=false in GDM config
+sudo sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
+
+# Verify the line is now active (should print: WaylandEnable=false)
+grep WaylandEnable /etc/gdm3/custom.conf
+
+# Restart the display manager to apply
+sudo systemctl restart gdm3
+```
+
+After GDM restarts, log back in. Verify Xorg is active:
+
+```bash
+echo $XDG_SESSION_TYPE   # should print: x11
+```
+
+> **Why this matters beyond WinApps:** Wayland also has issues with some GPU
+> passthrough configurations, screen sharing tools, and remote desktop clients.
+> Xorg is the more stable choice for a server-side desktop running inside a VM.
+
+---
+
+### Step 11.14 — Install Ubuntu in VM 101
+
+Start VM 101, open the console, and work through the Ubuntu Desktop installer.
+Use `vm101` as the hostname. When prompted for storage, install only to the
+64 GiB OS disk — leave the data drives untouched.
+
+After first login, disable Wayland on VM 101 as well (same command as Step 11.13):
+
+```bash
+sudo sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
+sudo systemctl restart gdm3
+```
+
+**VM 102 (Windows 11):** Boot from the Windows 11 ISO, work through the
+installer. Use `windows-sync` as the hostname. Install to the 128 GiB OS disk.
+After install, format the dedicated Sync.com data drive as NTFS in Disk
+Management, then install the Sync.com desktop client and point it at that drive.
 
 ---
 

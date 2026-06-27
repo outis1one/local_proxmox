@@ -2202,7 +2202,23 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| Memory (MiB) | 16384 |
+| Memory (MiB) | 49152 |
+
+Common MiB values for reference:
+
+| GiB | MiB to enter |
+|-----|-------------|
+| 8 GiB | 8192 |
+| 16 GiB | 16384 |
+| 32 GiB | 32768 |
+| 48 GiB | 49152 |
+| 64 GiB | 65536 |
+| 96 GiB | 98304 |
+| 128 GiB | 131072 |
+
+> 48 GiB (49152) is a good starting point for a desktop+NAS VM on a server
+> with 128–256 GiB total RAM. Adjust based on how much you want to reserve for
+> the host and other VMs.
 
 Click **Next**.
 
@@ -2336,6 +2352,11 @@ find it automatically.
 ---
 
 ### Step 11.6 — Add raw data drives to VM 100 via CLI
+
+> **You do NOT add bare drives to Proxmox storage.** Proxmox storage (local-lvm,
+> local, etc.) is only for VM disk images. Raw drives are passed directly to the
+> VM as block devices — they bypass Proxmox storage entirely and appear inside
+> the VM as `/dev/sdb`, `/dev/sdc`, etc. No storage pool setup required.
 
 The web UI does not support raw block device passthrough cleanly — use the
 Proxmox CLI. SSH into the host:

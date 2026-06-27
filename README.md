@@ -2132,13 +2132,15 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| Graphic card | **Default** (VirtIO) |
+| Graphic card | **none** |
 | Machine | q35 |
 | BIOS | OVMF (UEFI) |
 | Add EFI Disk | checked |
 | EFI Storage | local-lvm |
 | Pre-Enrolled Keys | **unchecked** |
 | SCSI Controller | VirtIO SCSI Single |
+| Qemu Agent | checked |
+| Add TPM | unchecked |
 
 > **Why q35 + OVMF?** GPU passthrough requires PCIe bus emulation, which only
 > `q35` provides. `i440fx` (the older default) does not support PCIe correctly
@@ -2147,8 +2149,16 @@ Click **Next**.
 > **Pre-Enrolled Keys must be unchecked.** Enabling it turns on Secure Boot,
 > which blocks NVIDIA kernel modules from loading in the guest.
 
-> **Graphic card stays as Default (VirtIO) for VM 100** — Frigate has no
-> passed-through GPU, so it needs the virtual display for console access.
+> **Graphic card: none** — this VM gets a real GPU passed through, so the
+> virtual display is disabled. Console access works via the passed-through GPU
+> once Ubuntu boots.
+
+> **Qemu Agent** — check this now, then after Ubuntu is installed run
+> `apt install qemu-guest-agent` inside the VM. It enables clean shutdown from
+> the Proxmox UI, shows the VM's IP address in the summary panel, and ensures
+> snapshots flush disk buffers before freezing.
+
+> **TPM** — only required for Windows 11. Leave unchecked for Ubuntu.
 
 Click **Next**.
 

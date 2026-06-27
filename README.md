@@ -244,6 +244,9 @@ reboot normally.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 2 — iDRAC Setup
 
 You need to do two things with iDRAC:
@@ -378,6 +381,9 @@ You should see the iDRAC dashboard showing system health, temperatures, and fans
 This is your remote window into the server — you can now manage it from your desk.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 3 — BIOS Settings
 
@@ -591,6 +597,9 @@ where the first Apply does not persist — applying a second time fixes it.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 4 — H730 RAID Configuration
 
 **Goal:** Mirror the two 2.5" rear drives together so a single drive failure
@@ -795,6 +804,9 @@ Click **Back** repeatedly until you reach the Lifecycle Controller home screen,
 then click **Exit**. The server will reboot.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 5 — Install Proxmox VE 9.1
 
@@ -1068,6 +1080,9 @@ You are now looking at the Proxmox web interface — the main dashboard.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 6 — Proxmox Post-Install
 
 From this point you will use **SSH** instead of the web console for most tasks.
@@ -1197,6 +1212,9 @@ After running this, refresh the Proxmox web UI — the popup will be gone.
 | Repo cloned to /opt/local_proxmox | ✓ |
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 7 — Fan Control + Staggered Spin-Up
 
@@ -1562,6 +1580,9 @@ Stagger complete.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 8 — Convert 3.5" Drives to Non-RAID Mode
 
 **What this does:** Right now the H730 sees your 3.5" drives as "Unconfigured
@@ -1726,6 +1747,9 @@ effect — reboot again and re-run `lsblk`. If still missing, re-run
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 9 — Map Physical Bays to Drives
 
 **The problem:** Linux names drives `sdb`, `sdc`, `sdd` etc. based on the order
@@ -1835,6 +1859,9 @@ ls -la /dev/disk/by-id/ | grep -v part
 You'll paste these paths into `qm set` commands in Phase 11, Step 11.6.
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 10 — GPU Passthrough Setup
 
@@ -2054,6 +2081,9 @@ grep CMDLINE /etc/default/grub
 | IOMMU active, GPU claimed by vfio-pci | ✓ |
 
 ---
+
+
+<a href="#top">↑ Back to top</a>
 
 ## Phase 11 — Create the VMs
 
@@ -2721,6 +2751,9 @@ Management, then install the Sync.com desktop client and point it at that drive.
 
 ---
 
+
+<a href="#top">↑ Back to top</a>
+
 ## Phase 12 — Deploy Frigate in VM 101
 
 **What this phase does:** Installs Docker inside VM 101, creates a ZFS
@@ -3141,3 +3174,5 @@ zfs list
 # Edit /opt/frigate/config.yml and reduce retention days, then:
 docker compose restart
 ```
+
+<a href="#top">↑ Back to top</a>

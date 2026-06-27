@@ -54,23 +54,25 @@ fan control script to work later.
 ## Phase 3 — BIOS Settings
 
 Still in F2 System Setup. These settings are **required** for GPU and USB
-passthrough to work. Missing VT-d is the #1 reason passthrough fails silently.
+passthrough to work.
 
 | Menu path | Setting | Value |
 |-----------|---------|-------|
 | Processor Settings | Virtualization Technology | **Enabled** |
-| Processor Settings | Virtualization Technology for Direct I/O | **Enabled** |
+| Processor Settings | C States | **Disabled** |
 | PCI Configuration | SR-IOV Global Enable | **Enabled** |
 | Boot Settings → BIOS Boot Settings | Boot Mode | **UEFI** (not Legacy/BIOS) |
 | System Profile Settings | System Profile | **Custom** |
-| System Profile Settings | Hard Disk Drive Sequencing | **Enabled** |
 | System Profile Settings | CPU Power Management | **Maximum Performance** |
 
-> **BIOS 2.19.0 menu changes:** "VT for Direct I/O" is now labelled
-> **"Virtualization Technology for Direct I/O"** — it's on the same
-> Processor Settings page, scroll past the first VT toggle. The old
-> "Power Management" top-level section is now **"System Profile Settings"**;
-> set System Profile to **Custom** first or the sub-options stay hidden.
+> **VT for Direct I/O (VT-d):** Newer R730xd BIOS versions (2.19+) removed
+> this toggle — VT-d is enabled by default. Don't worry if you can't find it.
+> Verify it's active after Proxmox is installed: `dmesg | grep -i iommu`
+> should show `DMAR: IOMMU enabled`. The kernel cmdline (`intel_iommu=on
+> iommu=pt`) in Phase 9 is still required.
+>
+> **Hard Disk Drive Sequencing** was also removed in newer BIOS — it is no
+> longer present and is not needed.
 
 > **Boot Mode must be UEFI.** Proxmox's EFI boot tool (`proxmox-boot-tool`)
 > only works with UEFI. Legacy BIOS mode breaks the GPU passthrough script.
@@ -431,7 +433,7 @@ lspci -nnk | grep -A3 -i nvidia   # must show vfio-pci
 ```bash
 dmesg | grep -i iommu
 # Should show: "DMAR: IOMMU enabled"
-# If not: re-check Phase 3 BIOS settings (VT-d) and Phase 9
+# If not: re-check Phase 9 cmdline (intel_iommu=on); VT-d is on by default in newer BIOS
 cat /etc/kernel/cmdline   # must contain intel_iommu=on iommu=pt
 ```
 

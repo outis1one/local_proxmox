@@ -2429,20 +2429,42 @@ qm set <vmid> -usb0 host=2-1   # bus-port notation from lsusb -t
 
 **USB optical drives:**
 
-Pass a USB optical drive to VM 100 (Services) for ripping with MakeMKV or
-HandBrake. Use **Method B (by port)** rather than by vendor/device ID — some
-optical drives briefly re-enumerate when a disc spins up, which can cause the
-device to drop and reconnect if bound by ID.
+Two USB optical drives connect to the VL805 PCIe card (already passed to VM 100
+as a PCI device in Step 11.4b). The drives appear inside VM 100 as `/dev/sr0`
+and `/dev/sr1` — but boot order can swap which is which.
+
+**Fix: udev port-binding rules inside VM 100.**
+Always plug drive 1 into the outermost port and drive 2 into the next port in.
+Label the cables. Then create stable symlinks based on port path:
 
 ```bash
-# Find the port your drive is on:
-lsusb -t
-# Then pass it to VM 100:
-qm set 100 -usb2 host=<bus>-<port>   # e.g. host=2-3
+# Inside VM 100 — plug both drives in, then find their port paths
+udevadm info /dev/sr0 | grep ID_PATH
+udevadm info /dev/sr1 | grep ID_PATH
+
+# Example output:
+# E: ID_PATH=pci-0000:01:00.0-usb-0:1:1.0-scsi-0:0:0:0   ← outermost port
+# E: ID_PATH=pci-0000:01:00.0-usb-0:2:1.0-scsi-0:0:0:0   ← next port in
+
+# Create the udev rule (replace ID_PATH values with yours from above)
+sudo tee /etc/udev/rules.d/99-optical.rules << 'EOF'
+ENV{ID_PATH}=="pci-0000:01:00.0-usb-0:1:1.0*", SYMLINK+="optical-drive1"
+ENV{ID_PATH}=="pci-0000:01:00.0-usb-0:2:1.0*", SYMLINK+="optical-drive2"
+EOF
+
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Verify
+ls -la /dev/optical-drive*
+# Should show: optical-drive1 -> sr0  and  optical-drive2 -> sr1
 ```
 
-Inside VM 100 the drive appears as `/dev/sr0`. MakeMKV and HandBrake will
-find it automatically.
+Use `/dev/optical-drive1` and `/dev/optical-drive2` in MakeMKV and HandBrake
+instead of `/dev/sr0` — these names survive reboots and port re-enumeration.
+
+> **Why not bind by vendor/device ID?** Identical drives share the same vendor
+> and device ID so udev can't tell them apart. Port binding is the only reliable
+> method for two identical drives.
 
 ---
 

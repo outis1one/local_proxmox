@@ -10,10 +10,14 @@ set -euo pipefail
 
 PERCCLI=$(command -v perccli || command -v perccli64 || true)
 if [[ -z "$PERCCLI" ]]; then
-  echo "perccli not found. Install options:"
-  echo "  1. apt install -y perccli   (try this first — in Proxmox repos)"
-  echo "  2. Download from dell.com/support → enter service tag → Drivers → Storage"
-  echo "     Look for 'PERCCLI' and download the Linux .deb, then: dpkg -i perccli_*.deb"
+  echo "perccli not found. Install it:"
+  echo "  curl -L --referer 'https://www.dell.com/' \\"
+  echo "    --user-agent 'Mozilla/5.0' \\"
+  echo "    'https://dl.dell.com/FOLDER03559396M/1/perccli-1.17.10-1.noarch.rpm' \\"
+  echo "    -o /tmp/perccli.rpm"
+  echo "  apt install -y alien && alien --to-deb /tmp/perccli.rpm"
+  echo "  dpkg -i /tmp/perccli_*.deb"
+  echo "  ln -s /opt/MegaRAID/perccli/perccli64 /usr/local/bin/perccli"
   exit 1
 fi
 

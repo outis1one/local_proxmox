@@ -212,18 +212,26 @@ targets unconfigured physical disks.
 
 ### Install perccli
 
-Try apt first — it's in the Proxmox repos:
+`apt` does not carry perccli. Download the RPM from Dell and convert it:
 
 ```bash
-apt install -y perccli
-```
+# Download (referer header required — Dell blocks plain curl)
+curl -L \
+  --referer "https://www.dell.com/" \
+  --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+  "https://dl.dell.com/FOLDER03559396M/1/perccli-1.17.10-1.noarch.rpm" \
+  -o /tmp/perccli.rpm
 
-If not found, download the `.deb` manually: go to `dell.com/support`, enter
-your service tag, then Drivers → Storage → search "PERCCLI", download the
-Linux package, copy it to the host, and install:
+# Convert RPM → deb and install
+apt install -y alien
+alien --to-deb /tmp/perccli.rpm
+dpkg -i /tmp/perccli_*.deb
 
-```bash
-dpkg -i perccli_*.deb
+# Binary lands in /opt/MegaRAID/perccli/ — symlink it into PATH
+ln -s /opt/MegaRAID/perccli/perccli64 /usr/local/bin/perccli
+
+# Verify
+perccli show
 ```
 
 ### Run the script

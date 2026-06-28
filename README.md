@@ -2163,7 +2163,7 @@ Click **Next**.
 
 | Field | Value |
 |-------|-------|
-| Graphic card | **Default (VirtIO)** ← temporary for install |
+| Graphic card | **VirtIO-GPU** ← temporary for install |
 | Machine | q35 |
 | BIOS | OVMF (UEFI) |
 | Add EFI Disk | checked |
@@ -2180,11 +2180,12 @@ Click **Next**.
 > **Pre-Enrolled Keys must be unchecked.** Enabling it turns on Secure Boot,
 > which blocks NVIDIA kernel modules from loading in the guest.
 
-> **Graphic card: use Default (VirtIO) during install.** With `none` selected,
-> noVNC has no virtual display to connect to and shows "Failed to run vncproxy."
-> Leave it as VirtIO for the Ubuntu install. After the GPU is passed through and
-> NVIDIA drivers are installed inside the VM, come back to Hardware → Display
-> and change it to `none`.
+> **Graphic card: in Proxmox 9 "VirtIO-GPU" is the new name for what was
+> previously called "Default".** Use VirtIO-GPU during install — it provides a
+> virtual display so noVNC works. With `none` selected, noVNC shows "Failed to
+> run vncproxy" because there is no virtual display device. After the GPU is
+> passed through and NVIDIA drivers are installed, change it to `none` in
+> Hardware → Display.
 
 > **Qemu Agent** — check this now, then after Ubuntu is installed run
 > `apt install qemu-guest-agent` inside the VM. It enables clean shutdown from
@@ -2201,15 +2202,21 @@ Click **Next**.
 |-------|-------|
 | Bus/Device | SCSI / 0 |
 | Storage | local-lvm |
-| Disk size (GiB) | 64 |
+| Disk size (GiB) | 600 |
 | Cache | Write back |
-| Discard | checked (if local-lvm is on SSD) |
+| Discard | checked |
+| IO thread | checked |
+| SSD emulation | unchecked |
 
 > **Write back** acknowledges writes to the VM as soon as they land in the
 > host's RAM cache, before they hit disk — faster than "No cache" (the
 > default). Safe enough for an OS disk on a server with redundant PSUs.
 > For the raw HDD passthrough later, cache mode is irrelevant — those drives
 > manage their own caching.
+
+> **SSD emulation** is not needed. Discard + IO thread already handles TRIM
+> pass-through correctly with VirtIO SCSI. SSD emulation only matters for
+> older IDE/SATA emulated controllers.
 
 Click **Next**.
 
@@ -2248,6 +2255,15 @@ Click **Next**.
 | Field | Value |
 |-------|-------|
 | Memory (MiB) | 49152 |
+| Minimum memory (MiB) | 49152 |
+| Ballooning Device | **unchecked** |
+
+> **Disable ballooning for VM 100.** Set Minimum = Maximum (both 49152) and
+> uncheck Ballooning Device. Ballooning lets Proxmox dynamically reclaim RAM
+> from the VM, but it fights against NUMA memory pinning and can cause latency
+> spikes during Immich indexing or Jellyfin transcoding. Lock it at 48 GiB.
+> Ballooning is fine for VM 101 (Frigate) where consistent low-latency RAM
+> access is less critical.
 
 Common MiB values for reference:
 
@@ -2292,10 +2308,15 @@ Click **Add** → **PCI Device**.
 |-------|-------|
 | Raw Device | select the GPU from the dropdown |
 | All Functions | **checked** |
-| Primary GPU | **checked** |
+| ROM-Bar | **checked** |
 | PCI-Express | **checked** |
+| Primary GPU | **checked** |
 
 Click **Add**.
+
+> **ROM-Bar must stay checked.** NVIDIA drivers read the GPU's VBIOS through
+> the ROM BAR during initialization. Unchecking it causes the driver to fail
+> or the GPU to not be recognized inside the VM.
 
 > VM 100 gets the GPU for Jellyfin transcoding, Immich ML acceleration,
 > HandBrake encoding, and general desktop GPU acceleration.

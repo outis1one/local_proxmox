@@ -2358,45 +2358,6 @@ needs USB 3.0 speed and works on any port.
 
 ---
 
-### Step 11.5 — Add Coral USB to VM 101
-
-In the left panel, click **101** → **Hardware** tab.
-
-Click **Add** → **USB Device**.
-
-First entry (pre-init ID):
-
-| Field | Value |
-|-------|-------|
-| Use USB Vendor/Device ID | selected |
-| Vendor ID | 1a6e |
-| Device ID | 089a |
-
-Click **Add**.
-
-Click **Add** → **USB Device** again.
-
-Second entry (post-init ID):
-
-| Field | Value |
-|-------|-------|
-| Use USB Vendor/Device ID | selected |
-| Vendor ID | 18d1 |
-| Device ID | 9302 |
-
-Click **Add**.
-
-> **Why two entries?** The Coral USB presents as `1a6e:089a` before Frigate
-> loads firmware onto it, then re-enumerates as `18d1:9302` after firmware
-> loads. Both must be passed through or the second enumeration will not be
-> accessible inside the VM.
-
-> **The Coral must be physically plugged in to the R730xd before starting the
-> VM.** If it is not connected, the VM boots fine but the USB devices will
-> not appear.
-
----
-
 ### Passing other USB devices to VMs
 
 Any USB device plugged into the R730xd can be passed through to a VM using
@@ -2603,17 +2564,71 @@ scsi8: /dev/disk/by-id/scsi-35000cca23bab1234,size=0
 
 Click **Create VM** in the web UI.
 
-| Tab | Value |
-|-----|-------|
-| General | VM ID: **101**, Name: **frigate** |
-| OS | ubuntu-24.04.4-live-server-amd64.iso |
-| System → Graphic card | **Default (VirtIO)** |
-| System → Machine | q35 |
-| System → BIOS | OVMF (UEFI) |
-| System → Pre-Enrolled Keys | **unchecked** |
-| CPU | 6 cores, host |
-| Memory | 8192 MiB |
-| Disk | 64 GiB on local-lvm |
+**Tab: General**
+
+| Field | Value |
+|-------|-------|
+| VM ID | 101 |
+| Name | frigate |
+
+**Tab: OS**
+
+| Field | Value |
+|-------|-------|
+| ISO image | ubuntu-24.04.4-live-server-amd64.iso |
+| OS Type | Linux |
+| Version | 6.x - 2.6 Kernel |
+
+**Tab: System**
+
+| Field | Value |
+|-------|-------|
+| Graphic card | VirtIO-GPU |
+| Machine | q35 |
+| BIOS | OVMF (UEFI) |
+| Add EFI Disk | checked |
+| EFI Storage | local-lvm |
+| Pre-Enrolled Keys | unchecked |
+| SCSI Controller | VirtIO SCSI Single |
+| Qemu Agent | checked |
+| Add TPM | unchecked |
+
+> Pre-Enrolled Keys unchecked — no Secure Boot needed for Ubuntu Server.
+
+**Tab: Disks**
+
+| Field | Value |
+|-------|-------|
+| Bus/Device | SCSI / 0 |
+| Storage | local-lvm |
+| Disk size (GiB) | 32 |
+| Cache | Write back |
+| Discard | checked |
+| IO thread | checked |
+| SSD emulation | unchecked |
+
+**Tab: CPU**
+
+| Field | Value |
+|-------|-------|
+| Sockets | 1 |
+| Cores | 6 |
+| Type | host |
+| Enable NUMA | checked |
+
+> 6 cores from socket 1 (VM 100 uses socket 0). NUMA keeps memory local to
+> the cores doing the work.
+
+**Tab: Memory**
+
+| Field | Value |
+|-------|-------|
+| Memory (MiB) | 8192 |
+| Minimum memory (MiB) | 8192 |
+| Ballooning Device | unchecked |
+
+> Ballooning disabled — locks the VM at 8 GiB, same reason as VM 100. 8 GiB
+> is sufficient for Frigate with the Coral handling inference.
 
 **Tab: Network**
 
@@ -2624,12 +2639,53 @@ Click **Create VM** in the web UI.
 | VLAN Tag | your security VLAN tag (e.g. 20) |
 | Firewall | checked |
 
-> Frigate runs on a dedicated security VLAN so cameras are isolated from the
+> Frigate runs on a dedicated security VLAN — cameras are isolated from the
 > main LAN. Set the VLAN tag to match your camera/security VLAN.
 
-> **No GPU for VM 101.** The Coral TPU (added in Step 11.5) handles all AI
-> inference. Frigate uses CPU decode for camera streams — perfectly adequate
-> on dual Xeons with 6 cores dedicated to this VM.
+Click **Finish**.
+
+> **No GPU for VM 101.** The Coral TPU (added in Step 11.9b below) handles
+> all AI inference. Frigate uses CPU decode for camera streams — perfectly
+> adequate on dual Xeons with 6 cores dedicated to this VM.
+
+---
+
+### Step 11.9b — Add Coral USB to VM 101
+
+In the left panel, click **101** → **Hardware** tab.
+
+Click **Add** → **USB Device**.
+
+First entry (pre-init ID):
+
+| Field | Value |
+|-------|-------|
+| Use USB Vendor/Device ID | selected |
+| Vendor ID | 1a6e |
+| Device ID | 089a |
+
+Click **Add**.
+
+Click **Add** → **USB Device** again.
+
+Second entry (post-init ID):
+
+| Field | Value |
+|-------|-------|
+| Use USB Vendor/Device ID | selected |
+| Vendor ID | 18d1 |
+| Device ID | 9302 |
+
+Click **Add**.
+
+> **Why two entries?** The Coral USB presents as `1a6e:089a` before Frigate
+> loads firmware onto it, then re-enumerates as `18d1:9302` after firmware
+> loads. Both must be passed through or the second enumeration will not be
+> accessible inside the VM.
+
+> **The Coral must be physically plugged in to the R730xd before starting the
+> VM.** If it is not connected, the VM boots fine but the USB devices will
+> not appear.
 
 ---
 

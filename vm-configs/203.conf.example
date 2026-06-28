@@ -1,0 +1,25 @@
+# Proxmox VM 203 — Minecraft Modded (R720)
+#
+# Copy to /etc/pve/qemu-server/203.conf on the R720 host.
+# No GPU, no USB, no raw drive passthrough — plain local-lvm disk.
+# Larger allocation — modpacks (Forge/NeoForge) need more heap than vanilla/Paper.
+
+agent: 1
+bios: seabios
+boot: order=scsi0
+cores: 6
+cpu: host
+machine: i440fx
+memory: 12288
+balloon: 0
+name: mc-modded
+numa: 0
+ostype: l26
+scsihw: virtio-scsi-single
+sockets: 1
+
+# OS + world disk
+scsi0: local-lvm:vm-203-disk-0,cache=writeback,discard=on,iothread=1,size=30G
+
+# Network
+net0: virtio,bridge=vmbr0,firewall=1

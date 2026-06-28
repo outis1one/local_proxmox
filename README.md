@@ -21,6 +21,7 @@ one document.
 - [Phase 10 — GPU Passthrough Setup](#phase-10--gpu-passthrough-setup)
 - [Phase 11 — Create the VMs](#phase-11--create-the-vms)
 - [Phase 12 — Deploy Frigate in VM 101](#phase-12--deploy-frigate-in-vm-101)
+- [Phase 13 — Minecraft Server VMs (R720)](#phase-13--minecraft-server-vms-r720)
 
 ---
 
@@ -3258,6 +3259,219 @@ stats. Navigate to **System → Stats** to confirm:
 | VM 100 | Ubuntu Desktop 24.04.4, GPU passthrough, 8 drives, Immich/Jellyfin/Audiobookshelf/NAS | ✓ |
 | VM 101 | Ubuntu Server 24.04.4, Coral TPU, Frigate NVR, security VLAN | ✓ |
 | VM 102 | Windows 11, Sync.com | ready |
+
+---
+
+## Phase 13 — Minecraft Server VMs (R720)
+
+**What this phase does:** Creates four Minecraft server VMs on a second,
+separate Proxmox host — a Dell R720 — using the same wizard-driven VM setup
+as Phases 11/12, but without any of the GPU passthrough, Coral USB, or raw
+drive passthrough work. Minecraft needs CPU, RAM, and disk — nothing else.
+
+**Hardware (this host, not the R730xd):**
+
+| Component | Detail |
+|-----------|--------|
+| Server | Dell PowerEdge R720 |
+| CPU | 2x Intel Xeon E5-2697 v2 (12c/24t each — 24 cores / 48 threads total) |
+| RAM | 125 GiB |
+| Storage | 5x spinning HDD behind PERC H710 (no SSD) — `local-lvm` |
+| Network | `eno1` → `vmbr0`, single 1GbE link |
+| Proxmox | VE 8.1.3 |
+
+> **No GPU passthrough, no Coral, no raw disk passthrough on this host.**
+> Skip `gpu-passthrough-setup.sh`, `build-bay-map.sh`, and `perc-nonraid.sh`
+> entirely — those only apply to the R730xd's Frigate/storage workload.
+> VM disks here are plain `local-lvm` virtual disks, same as VM 102 in the
+> R730xd setup.
+
+> **All HDDs, no SSD.** Minecraft autosaves and region-file writes are small
+> and frequent. Expect more I/O wait under heavy load (many players, modded
+> redstone/farms) than an SSD host would show. If a server feels laggy under
+> load, check `iostat -x 2` on the Proxmox host before assuming it's CPU.
+
+**Prerequisites:**
+- VMs 101, 102, 106 removed from this host (freed full 24c/48t, 125GiB, and
+  all five disks for this phase)
+- Ubuntu Server 24.04.4 LTS ISO uploaded to this host's `local` storage
+  (same download step as Phase 11, Step 11.1/11.2 — repeat on the R720)
+
+---
+
+### Step 13.1 — Create VM 201 (Survival/Paper #1) via the wizard
+
+In the R720's Proxmox web UI, click **Create VM**.
+
+**Tab: General**
+
+| Field | Value |
+|-------|-------|
+| VM ID | 201 |
+| Name | mc-survival-1 |
+
+**Tab: OS**
+
+| Field | Value |
+|-------|-------|
+| ISO image | ubuntu-24.04.4-live-server-amd64.iso |
+| OS Type | Linux |
+| Version | 6.x - 2.6 Kernel |
+
+**Tab: System**
+
+| Field | Value |
+|-------|-------|
+| Graphic card | Default |
+| Machine | i440fx |
+| BIOS | SeaBIOS |
+| SCSI Controller | VirtIO SCSI Single |
+| Qemu Agent | checked |
+
+> **Why SeaBIOS/i440fx here instead of OVMF/q35 like Phases 11–12?** Those
+> were required for GPU passthrough on the R730xd. Nothing on this host is
+> being passed through, so there's no reason to take on UEFI's extra
+> complexity (Secure Boot prompts, EFI disk, etc.).
+
+**Tab: Disks**
+
+| Field | Value |
+|-------|-------|
+| Bus/Device | SCSI / 0 |
+| Storage | local-lvm |
+| Disk size (GiB) | 20 |
+| Cache | Write back |
+| Discard | checked |
+| IO thread | checked |
+
+**Tab: CPU**
+
+| Field | Value |
+|-------|-------|
+| Sockets | 1 |
+| Cores | 4 |
+| Type | host |
+
+**Tab: Memory**
+
+| Field | Value |
+|-------|-------|
+| Memory (MiB) | 8192 |
+| Ballooning | unchecked |
+
+> **Why disable ballooning?** Minecraft's JVM heap grabs and holds memory.
+> Letting Proxmox reclaim "idle" RAM from the VM fights with the JVM and can
+> trigger GC pauses or swapping inside the guest. Fix the allocation instead.
+
+**Tab: Network**
+
+| Field | Value |
+|-------|-------|
+| Bridge | vmbr0 |
+| Model | VirtIO (paravirtualized) |
+| Firewall | checked |
+
+Click **Finish**, then **Start** the VM and install Ubuntu Server normally
+(same installer flow as Phase 11 — set hostname `mc-survival-1`, enable
+OpenSSH server during install).
+
+---
+
+### Step 13.2 — Repeat for VMs 202–204
+
+Same wizard steps as 13.1, changing only VM ID/name, cores, and memory:
+
+| VM ID | Name | Cores | Memory | Disk | Notes |
+|-------|------|-------|--------|------|-------|
+| 201 | mc-survival-1 | 4 | 8192 MiB | 20G | Paper, vanilla-like |
+| 202 | mc-survival-2 | 4 | 8192 MiB | 20G | Paper, vanilla-like |
+| 203 | mc-modded | 6 | 12288 MiB | 30G | Forge/NeoForge modpack |
+| 204 | mc-minigames | 2 | 4096 MiB | 15G | Creative/minigames |
+
+This commits 16 of 24 cores and 32 of 125 GiB RAM — leaving headroom for
+Proxmox itself and room to add a fifth server later without resizing
+anything.
+
+---
+
+### Step 13.3 — Install Java and the server jar (inside each VM)
+
+SSH into each VM and run:
+
+```bash
+sudo apt update && sudo apt install -y openjdk-21-jre-headless
+sudo useradd -m -s /bin/bash minecraft
+sudo mkdir -p /opt/minecraft
+sudo chown minecraft:minecraft /opt/minecraft
+```
+
+Download the server jar as the `minecraft` user (Paper for 201/202/204,
+the modpack's server pack for 203), accept the EULA:
+
+```bash
+sudo -u minecraft bash -c '
+cd /opt/minecraft
+curl -o server.jar "<paper or modpack server jar URL>"
+echo "eula=true" > eula.txt
+'
+```
+
+---
+
+### Step 13.4 — Create a systemd service per VM
+
+```bash
+sudo tee /etc/systemd/system/minecraft.service <<'EOF'
+[Unit]
+Description=Minecraft Server
+After=network.target
+
+[Service]
+User=minecraft
+WorkingDirectory=/opt/minecraft
+ExecStart=/usr/bin/java -Xms2G -Xmx<HEAP> -jar server.jar nogui
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now minecraft.service
+```
+
+Set `-Xmx` to roughly RAM minus 1.5–2 GiB headroom for the OS (e.g. 6G heap
+on the 8 GiB VMs, 10G heap on the 12 GiB VM, 2.5G heap on the 4 GiB VM).
+
+---
+
+### Step 13.5 — Open ports
+
+One port per server, forwarded from the router/firewall to each VM's IP:
+
+| VM | Port |
+|----|------|
+| 201 | 25565 |
+| 202 | 25566 |
+| 203 | 25567 |
+| 204 | 25568 |
+
+```bash
+sudo ufw allow 25565/tcp   # adjust per VM
+```
+
+---
+
+### Phase 13 complete — summary
+
+| What is done | Status |
+|---|---|
+| VMs 201–204 created with fixed (non-ballooned) CPU/RAM | ✓ |
+| Ubuntu Server installed in each, SSH access confirmed | ✓ |
+| Java + server jar installed, EULA accepted | ✓ |
+| systemd service running each server, restarts on crash | ✓ |
+| Ports forwarded per server | ✓ |
 
 ---
 

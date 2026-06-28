@@ -1,0 +1,25 @@
+# Proxmox VM 204 — Minecraft Minigames/Creative (R720)
+#
+# Copy to /etc/pve/qemu-server/204.conf on the R720 host.
+# No GPU, no USB, no raw drive passthrough — plain local-lvm disk.
+# Smallest allocation — lighter player count / simpler worlds.
+
+agent: 1
+bios: seabios
+boot: order=scsi0
+cores: 2
+cpu: host
+machine: i440fx
+memory: 4096
+balloon: 0
+name: mc-minigames
+numa: 0
+ostype: l26
+scsihw: virtio-scsi-single
+sockets: 1
+
+# OS + world disk
+scsi0: local-lvm:vm-204-disk-0,cache=writeback,discard=on,iothread=1,size=15G
+
+# Network
+net0: virtio,bridge=vmbr0,firewall=1

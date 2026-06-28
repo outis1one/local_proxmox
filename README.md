@@ -2236,13 +2236,25 @@ Click **Next**.
 > **Why 12 cores / 1 socket?** The E5-2660 v4 has 14 cores per socket (28
 > total across both CPUs). Keeping Sockets at 1 pins the VM to a single NUMA
 > node — all memory accesses stay local to that socket's RAM channels, avoiding
-> the ~30–40ns penalty of crossing to the other socket. Give VM 100 12 cores
-> from socket 0, VM 101 gets 6 cores from socket 1.
+> the ~30–40ns penalty of crossing to the other socket. VM 100 gets socket 0
+> (CPU 1), VM 101 gets socket 1 (CPU 2).
 >
 > **Enable NUMA** tells Proxmox to allocate RAM from the same socket the vCPUs
 > are pinned to. Without it the RAM may come from the wrong socket even if
 > Sockets is set to 1. The checkbox is in **Processors → Edit → Enable NUMA**
 > (not in the Memory dialog).
+>
+> **Pinning VM 100 to socket 0 (CPU 1) on the Proxmox host:**
+> ```bash
+> # Find which CPU IDs belong to socket 0
+> lscpu -e | grep "^[0-9]" | awk '$3==0 {print $1}' | tr '\n' ','
+> # Example output: 0,1,2,...,13,28,29,...,41,
+>
+> # Pin VM 100 to socket 0 cores (replace the CPU list with your actual output above, no trailing comma)
+> echo "cpuset: 0-13,28-41" >> /etc/pve/qemu-server/100.conf
+> ```
+> After adding `cpuset`, restart the VM. Proxmox will then schedule all vCPUs
+> only on those physical cores, keeping memory traffic on socket 0's RAM channels.
 >
 > **nested-virt flag** — you will see this in Extra CPU Flags. Leave it at
 > Default; it is automatically enabled when CPU type is `host` on Intel, which
@@ -2616,8 +2628,19 @@ Click **Create VM** in the web UI.
 | Type | host |
 | Enable NUMA | checked |
 
-> 6 cores from socket 1 (VM 100 uses socket 0). NUMA keeps memory local to
-> the cores doing the work.
+> 6 cores from socket 1 (CPU 2) — VM 100 uses socket 0 (CPU 1). NUMA keeps
+> memory local to the cores doing the work.
+>
+> **Pin VM 101 to socket 1 (CPU 2) on the Proxmox host:**
+> ```bash
+> # Find which CPU IDs belong to socket 1
+> lscpu -e | grep "^[0-9]" | awk '$3==1 {print $1}' | tr '\n' ','
+> # Example output: 14,15,...,27,42,43,...,55,
+>
+> # Pin VM 101 to socket 1 cores (replace list with your actual output, no trailing comma)
+> echo "cpuset: 14-27,42-55" >> /etc/pve/qemu-server/101.conf
+> ```
+> After adding `cpuset`, restart VM 101.
 
 **Tab: Memory**
 

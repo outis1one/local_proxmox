@@ -2309,64 +2309,9 @@ Click **Next**.
 
 Click **Next**, then **Finish**.
 
-VM 100 now appears in the left panel. **Do not start it yet** — the GPU and
-data drives must be added first.
-
-After the wizard completes, add the GPU in the **Hardware** tab:
-
-Click **Add** → **PCI Device**.
-
-| Field | Value |
-|-------|-------|
-| Raw Device | select the GPU from the dropdown |
-| All Functions | **checked** |
-| ROM-Bar | **checked** |
-| PCI-Express | **checked** |
-| Primary GPU | **checked** |
-
-Click **Add**.
-
-> **ROM-Bar must stay checked.** NVIDIA drivers read the GPU's VBIOS through
-> the ROM BAR during initialization. Unchecking it causes the driver to fail
-> or the GPU to not be recognized inside the VM.
-
-> VM 100 gets the GPU for Jellyfin transcoding, Immich ML acceleration,
-> HandBrake encoding, and general desktop GPU acceleration.
-
----
-
-### Step 11.4b — Add USB 3.0 PCIe card to VM 100
-
-Still in VM 100's **Hardware** tab. Click **Add** → **PCI Device**.
-
-First, identify the card's PCI address on the Proxmox host:
-
-```bash
-lspci | grep -i usb
-# Look for the PCIe card — e.g.:
-# 82:00.0 USB controller: VIA Technologies, Inc. VL805/806 xHCI USB 3.0 Controller (rev 01)
-```
-
-In the dialog:
-
-| Field | Value |
-|-------|-------|
-| Raw Device | selected |
-| Device | 0000:82:00.0 (your address from lspci) |
-| All Functions | checked |
-| PCI-Express | checked |
-| ROM-Bar | checked |
-| Primary GPU | unchecked |
-
-Click **Add**.
-
-All ports on the USB card are now owned by VM 100. The Coral TPU for VM 101
-(Frigate) uses one of the server's built-in rear USB ports instead — it only
-needs USB 3.0 speed and works on any port.
-
-> **VL805/VIA cards** are single-function (one PCI address), so All Functions
-> has no effect but does no harm. ASMedia and other multi-function cards
-> benefit from it more.
+VM 100 now appears in the left panel. **Do not start it yet** — data drives
+must be added first (Steps 11.6–11.8). The GPU and USB PCIe card are added
+**after** the OS is installed (Steps 11.4 and 11.4b, later in this phase).
 
 ---
 
@@ -2875,6 +2820,68 @@ echo $XDG_SESSION_TYPE   # should print: x11
 > **Why this matters beyond WinApps:** Wayland also has issues with some GPU
 > passthrough configurations, screen sharing tools, and remote desktop clients.
 > Xorg is the more stable choice for a server-side desktop running inside a VM.
+
+---
+
+### Step 11.4 — Add GPU to VM 100
+
+Now that Ubuntu is installed and the noVNC console is no longer needed, add
+the GPU. **Shut down VM 100 first** (`sudo poweroff` inside the VM).
+
+In VM 100's **Hardware** tab, click **Add** → **PCI Device**.
+
+| Field | Value |
+|-------|-------|
+| Raw Device | select the GPU from the dropdown |
+| All Functions | **checked** |
+| ROM-Bar | **checked** |
+| PCI-Express | **checked** |
+| Primary GPU | **checked** |
+
+Click **Add**.
+
+> **ROM-Bar must stay checked.** NVIDIA drivers read the GPU's VBIOS through
+> the ROM BAR during initialization. Unchecking it causes the driver to fail
+> or the GPU to not be recognized inside the VM.
+
+Also change the Display device: **Hardware → Display → Edit → Graphic card: none**.
+noVNC will stop working after this — all console access goes through SSH or
+the GPU's physical output.
+
+---
+
+### Step 11.4b — Add USB 3.0 PCIe card to VM 100
+
+Still in VM 100's **Hardware** tab (VM still shut down). Click **Add** → **PCI Device**.
+
+First, identify the card's PCI address on the Proxmox host:
+
+```bash
+lspci | grep -i usb
+# Look for the PCIe card — e.g.:
+# 82:00.0 USB controller: VIA Technologies, Inc. VL805/806 xHCI USB 3.0 Controller (rev 01)
+```
+
+In the dialog:
+
+| Field | Value |
+|-------|-------|
+| Raw Device | selected |
+| Device | 0000:82:00.0 (your address from lspci) |
+| All Functions | checked |
+| PCI-Express | checked |
+| ROM-Bar | checked |
+| Primary GPU | unchecked |
+
+Click **Add**, then start VM 100.
+
+All ports on the USB card are now owned by VM 100. The Coral TPU for VM 101
+(Frigate) uses one of the server's built-in rear USB ports instead — it only
+needs USB 3.0 speed and works on any port.
+
+> **VL805/VIA cards** are single-function (one PCI address), so All Functions
+> has no effect but does no harm. ASMedia and other multi-function cards
+> benefit from it more.
 
 ---
 

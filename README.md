@@ -2253,8 +2253,9 @@ Click **Next**.
 > # Pin VM 100 to socket 0 cores (replace the CPU list with your actual output above, no trailing comma)
 > echo "cpuset: 0-13,28-41" >> /etc/pve/qemu-server/100.conf
 > ```
-> After adding `cpuset`, restart the VM. Proxmox will then schedule all vCPUs
-> only on those physical cores, keeping memory traffic on socket 0's RAM channels.
+> Add this before first boot — the setting takes effect whenever the VM next starts.
+> Proxmox will schedule all vCPUs only on those physical cores, keeping memory
+> traffic on socket 0's RAM channels.
 >
 > **nested-virt flag** — you will see this in Extra CPU Flags. Leave it at
 > Default; it is automatically enabled when CPU type is `host` on Intel, which
@@ -2640,7 +2641,7 @@ Click **Create VM** in the web UI.
 > # Pin VM 101 to socket 1 cores (replace list with your actual output, no trailing comma)
 > echo "cpuset: 14-27,42-55" >> /etc/pve/qemu-server/101.conf
 > ```
-> After adding `cpuset`, restart VM 101.
+> Add this before first boot — the setting takes effect whenever VM 101 next starts.
 
 **Tab: Memory**
 

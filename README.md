@@ -2245,16 +2245,16 @@ Click **Next**.
 > (not in the Memory dialog).
 >
 > **Pinning VM 100 to socket 0 (CPU 1) on the Proxmox host:**
-> ```bash
-> # Find which CPU IDs belong to socket 0
-> lscpu -e | grep "^[0-9]" | awk '$3==0 {print $1}' | tr '\n' ','
-> # Example output: 0,1,2,...,13,28,29,...,41,
 >
-> # Pin VM 100 to socket 0 cores (replace the CPU list with your actual output above, no trailing comma)
-> echo "cpuset: 0-13,28-41" >> /etc/pve/qemu-server/100.conf
+> On this server sockets are interleaved — socket 0 = even CPU IDs, socket 1 = odd CPU IDs.
+> ```bash
+> sed -i '/^cpuset:/d' /etc/pve/qemu-server/100.conf
+> echo "cpuset: 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54" >> /etc/pve/qemu-server/100.conf
+> grep cpuset /etc/pve/qemu-server/100.conf
 > ```
-> After adding `cpuset`, restart the VM. Proxmox will then schedule all vCPUs
-> only on those physical cores, keeping memory traffic on socket 0's RAM channels.
+> Add this before first boot — the setting takes effect whenever the VM next starts.
+> Proxmox will schedule all vCPUs only on those physical cores, keeping memory
+> traffic on socket 0's RAM channels.
 >
 > **nested-virt flag** — you will see this in Extra CPU Flags. Leave it at
 > Default; it is automatically enabled when CPU type is `host` on Intel, which
@@ -2632,15 +2632,14 @@ Click **Create VM** in the web UI.
 > memory local to the cores doing the work.
 >
 > **Pin VM 101 to socket 1 (CPU 2) on the Proxmox host:**
-> ```bash
-> # Find which CPU IDs belong to socket 1
-> lscpu -e | grep "^[0-9]" | awk '$3==1 {print $1}' | tr '\n' ','
-> # Example output: 14,15,...,27,42,43,...,55,
 >
-> # Pin VM 101 to socket 1 cores (replace list with your actual output, no trailing comma)
-> echo "cpuset: 14-27,42-55" >> /etc/pve/qemu-server/101.conf
+> On this server sockets are interleaved — socket 1 = odd CPU IDs.
+> ```bash
+> sed -i '/^cpuset:/d' /etc/pve/qemu-server/101.conf
+> echo "cpuset: 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55" >> /etc/pve/qemu-server/101.conf
+> grep cpuset /etc/pve/qemu-server/101.conf
 > ```
-> After adding `cpuset`, restart VM 101.
+> Add this before first boot — the setting takes effect whenever VM 101 next starts.
 
 **Tab: Memory**
 

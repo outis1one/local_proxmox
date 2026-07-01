@@ -2309,64 +2309,9 @@ Click **Next**.
 
 Click **Next**, then **Finish**.
 
-VM 100 now appears in the left panel. **Do not start it yet** — the GPU and
-data drives must be added first.
-
-After the wizard completes, add the GPU in the **Hardware** tab:
-
-Click **Add** → **PCI Device**.
-
-| Field | Value |
-|-------|-------|
-| Raw Device | select the GPU from the dropdown |
-| All Functions | **checked** |
-| ROM-Bar | **checked** |
-| PCI-Express | **checked** |
-| Primary GPU | **checked** |
-
-Click **Add**.
-
-> **ROM-Bar must stay checked.** NVIDIA drivers read the GPU's VBIOS through
-> the ROM BAR during initialization. Unchecking it causes the driver to fail
-> or the GPU to not be recognized inside the VM.
-
-> VM 100 gets the GPU for Jellyfin transcoding, Immich ML acceleration,
-> HandBrake encoding, and general desktop GPU acceleration.
-
----
-
-### Step 11.4b — Add USB 3.0 PCIe card to VM 100
-
-Still in VM 100's **Hardware** tab. Click **Add** → **PCI Device**.
-
-First, identify the card's PCI address on the Proxmox host:
-
-```bash
-lspci | grep -i usb
-# Look for the PCIe card — e.g.:
-# 82:00.0 USB controller: VIA Technologies, Inc. VL805/806 xHCI USB 3.0 Controller (rev 01)
-```
-
-In the dialog:
-
-| Field | Value |
-|-------|-------|
-| Raw Device | selected |
-| Device | 0000:82:00.0 (your address from lspci) |
-| All Functions | checked |
-| PCI-Express | checked |
-| ROM-Bar | checked |
-| Primary GPU | unchecked |
-
-Click **Add**.
-
-All ports on the USB card are now owned by VM 100. The Coral TPU for VM 101
-(Frigate) uses one of the server's built-in rear USB ports instead — it only
-needs USB 3.0 speed and works on any port.
-
-> **VL805/VIA cards** are single-function (one PCI address), so All Functions
-> has no effect but does no harm. ASMedia and other multi-function cards
-> benefit from it more.
+VM 100 now appears in the left panel. **Do not start it yet** — data drives
+must be added first (Steps 11.6–11.8). The GPU and USB PCIe card are added
+**after** the OS is installed (Steps 11.4 and 11.4b, later in this phase).
 
 ---
 
@@ -2711,81 +2656,7 @@ Click **Add**.
 
 ---
 
-### Step 11.10 — Create VM 102 (Windows 11, Sync.com)
-
-VM 102 is a Windows 11 VM that runs the Sync.com desktop client for cloud
-backup. Syncthing on VM 100 (Services) mirrors NAS data to VM 102's local
-NTFS drive, and Sync.com picks it up natively.
-
-Click **Create VM** again.
-
-**Tab: General**
-
-| Field | Value |
-|-------|-------|
-| VM ID | 102 |
-| Name | windows-sync |
-
-**Tab: OS**
-
-| Field | Value |
-|-------|-------|
-| ISO image | windows11 ISO (upload to local storage first) |
-| OS Type | Microsoft Windows |
-| Version | 11/2022/2025 |
-
-**Tab: System**
-
-| Field | Value |
-|-------|-------|
-| Graphic card | Default (VirtIO) |
-| Machine | q35 |
-| BIOS | OVMF (UEFI) |
-| Add EFI Disk | checked |
-| EFI Storage | local-lvm |
-| Pre-Enrolled Keys | **checked** (Windows 11 requires Secure Boot) |
-| Add TPM | **checked**, TPM Storage: local-lvm (Windows 11 requires TPM 2.0) |
-| SCSI Controller | VirtIO SCSI Single |
-
-**Tab: Disks**
-
-| Field | Value |
-|-------|-------|
-| Disk size (GiB) | 128 |
-| Storage | local-lvm |
-| Cache | Write back |
-
-**Tab: CPU**
-
-| Field | Value |
-|-------|-------|
-| Sockets | 1 |
-| Cores | 4 |
-| Type | host |
-
-**Tab: Memory**
-
-| Field | Value |
-|-------|-------|
-| Memory (MiB) | 8192 |
-
-Click **Finish**.
-
-Then pass a dedicated data drive to VM 102 for Sync.com to sync to:
-
-```bash
-# Use one of your spare HDDs — Sync.com data lives here (formatted NTFS in Windows)
-qm set 102 -scsi1 /dev/disk/by-id/PLACEHOLDER_SYNC_DRIVE
-```
-
-> **Why a dedicated drive?** Sync.com needs a real local NTFS disk — not a
-> network share, not a shared folder. Windows formats this drive NTFS and
-> Sync.com treats it as a native local drive. Syncthing on VM 100 (Services)
-> pushes data to it over the LAN.
-
----
-
-### Step 11.11 — Install Ubuntu Desktop in VM 100
+### Step 11.10 — Install Ubuntu Desktop in VM 100
 
 In the left panel, click **100** → click **Start** (▶ button).
 
@@ -2819,7 +2690,7 @@ the ISO automatically.
 
 ---
 
-### Step 11.12 — Find VM 100's IP and test SSH
+### Step 11.11 — Find VM 100's IP and test SSH
 
 Log in at the console. Check the assigned IP:
 
@@ -2847,7 +2718,7 @@ If SSH connects, close the noVNC console tab — you will not need it again.
 
 ---
 
-### Step 11.13 — Disable Wayland, force Xorg
+### Step 11.12 — Disable Wayland, force Xorg
 
 Ubuntu 24.04 defaults to Wayland. WinApps file sharing (`\\tsclient\home`)
 breaks under Wayland due to FreeRDP limitations — tsclient mounts as empty.
@@ -2878,7 +2749,69 @@ echo $XDG_SESSION_TYPE   # should print: x11
 
 ---
 
-### Step 11.14 — Install Ubuntu Server in VM 101
+### Step 11.13 — Add GPU to VM 100
+
+Now that Ubuntu is installed and the noVNC console is no longer needed, add
+the GPU. **Shut down VM 100 first** (`sudo poweroff` inside the VM).
+
+In VM 100's **Hardware** tab, click **Add** → **PCI Device**.
+
+| Field | Value |
+|-------|-------|
+| Raw Device | select the GPU from the dropdown |
+| All Functions | **checked** |
+| ROM-Bar | **checked** |
+| PCI-Express | **checked** |
+| Primary GPU | **checked** |
+
+Click **Add**.
+
+> **ROM-Bar must stay checked.** NVIDIA drivers read the GPU's VBIOS through
+> the ROM BAR during initialization. Unchecking it causes the driver to fail
+> or the GPU to not be recognized inside the VM.
+
+Also change the Display device: **Hardware → Display → Edit → Graphic card: none**.
+noVNC will stop working after this — all console access goes through SSH or
+the GPU's physical output.
+
+---
+
+### Step 11.14 — Add USB 3.0 PCIe card to VM 100
+
+Still in VM 100's **Hardware** tab (VM still shut down). Click **Add** → **PCI Device**.
+
+First, identify the card's PCI address on the Proxmox host:
+
+```bash
+lspci | grep -i usb
+# Look for the PCIe card — e.g.:
+# 82:00.0 USB controller: VIA Technologies, Inc. VL805/806 xHCI USB 3.0 Controller (rev 01)
+```
+
+In the dialog:
+
+| Field | Value |
+|-------|-------|
+| Raw Device | selected |
+| Device | 0000:82:00.0 (your address from lspci) |
+| All Functions | checked |
+| PCI-Express | checked |
+| ROM-Bar | checked |
+| Primary GPU | unchecked |
+
+Click **Add**, then start VM 100.
+
+All ports on the USB card are now owned by VM 100. The Coral TPU for VM 101
+(Frigate) uses one of the server's built-in rear USB ports instead — it only
+needs USB 3.0 speed and works on any port.
+
+> **VL805/VIA cards** are single-function (one PCI address), so All Functions
+> has no effect but does no harm. ASMedia and other multi-function cards
+> benefit from it more.
+
+---
+
+### Step 11.15 — Install Ubuntu Server in VM 101
 
 Start VM 101, open the console, and work through the Ubuntu Server installer.
 Use `frigate` as the hostname. When prompted for storage, install only to the
@@ -2888,11 +2821,6 @@ when prompted so you can SSH in for Phase 12.
 > **No Wayland to disable** — Ubuntu Server has no desktop environment.
 > After install, SSH in directly: `ssh ubuntu@<vm101-ip>`
 
-**VM 102 (Windows 11):** Boot from the Windows 11 ISO, work through the
-installer. Use `windows-sync` as the hostname. Install to the 128 GiB OS disk.
-After install, format the dedicated Sync.com data drive as NTFS in Disk
-Management, then install the Sync.com desktop client and point it at that drive.
-
 ---
 
 ### Phase 11 complete — where you are now
@@ -2900,10 +2828,9 @@ Management, then install the Sync.com desktop client and point it at that drive.
 | What is done | Status |
 |---|---|
 | Ubuntu Server 24.04.4 and Desktop 24.04.4 ISOs uploaded to Proxmox | ✓ |
-| VM 100 created: GPU, 8 raw data drives, services (Immich/Jellyfin/Audiobookshelf/NAS) | ✓ |
-| VM 101 created: Coral USB (×2), security VLAN, Frigate NVR | ✓ |
-| VM 102 created: Windows 11, Sync.com | ✓ |
-| Ubuntu installed and SSH accessible in all three VMs | ✓ |
+| VM 100 created: GPU, raw data drives, services (Immich/Jellyfin/Audiobookshelf/NAS) | ✓ |
+| VM 101 created: Coral USB, security VLAN, Frigate NVR | ✓ |
+| Ubuntu installed and SSH accessible in both VMs | ✓ |
 
 ---
 
@@ -3257,7 +3184,6 @@ stats. Navigate to **System → Stats** to confirm:
 | Services | fan-control (quiet fans), stagger-spinup (PSU protection) | ✓ |
 | VM 100 | Ubuntu Desktop 24.04.4, GPU passthrough, 8 drives, Immich/Jellyfin/Audiobookshelf/NAS | ✓ |
 | VM 101 | Ubuntu Server 24.04.4, Coral TPU, Frigate NVR, security VLAN | ✓ |
-| VM 102 | Windows 11, Sync.com | ready |
 
 ---
 
